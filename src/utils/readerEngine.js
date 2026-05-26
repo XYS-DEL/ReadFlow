@@ -204,25 +204,22 @@ export async function extractArticle(url, abortSignal) {
     let textContent = '';
     let parsedGitee = false;
 
-    // Helper: HTML entity 解码函数，利用浏览器原生 DOMParser 实现完美、全面的 HTML 实体解析（支持任意进制与命名实体）
+    // Helper: HTML entity 解码函数，精确替换 Gitee 用来转义 Markdown 的核心实体
+    // 杜绝使用 DOMParser 导致 Markdown 源码中合法的内联 HTML 标签（如 <code> <em> 等）被文本化误伤抹除的问题
     const decodeHtmlEntities = (str) => {
       if (!str) return '';
-      try {
-        const docParser = new DOMParser();
-        const parsedDoc = docParser.parseFromString(str, 'text/html');
-        return parsedDoc.documentElement.textContent || str;
-      } catch (e) {
-        console.warn('[解码警告] 原生 DOMParser 解码失败，启用备用实体替换方案', e);
-        return str
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/&#x000A;/g, '\n')
-          .replace(/&#x0A;/g, '\n')
-          .replace(/&nbsp;/g, ' ');
-      }
+      // 性能与原味优化：如果字符串中完全不包含 & 字符，说明没有被 HTML 实体转义，直接跳过解码
+      if (!str.includes('&')) return str;
+      
+      return str
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#x000A;/g, '\n')
+        .replace(/&#x0A;/g, '\n')
+        .replace(/&nbsp;/g, ' ');
     };
 
     // 3.1 针对 Gitee 平台的隐藏 raw markdown textarea 进行精准定向捕获
@@ -289,7 +286,7 @@ export async function extractArticle(url, abortSignal) {
             console.log('[Markdown 编译] 成功通过 marked 引擎本地编译原始 Markdown！');
           } catch (e) {
             console.error('marked parse failed, falling back...', e);
-            readmeHtml = `<pre>${rawMarkdown}</pre>`;
+            readmeHtml = `<pre>${escapeHtml(rawMarkdown)}</pre>`;
             textContent = rawMarkdown;
           }
         } else {
@@ -299,7 +296,7 @@ export async function extractArticle(url, abortSignal) {
       }
     }
 
-    // 4. 清洗 HTML 并允许 pre, code 代码块，以及 table, tbody 等表格标签，同时允许 referrerpolicy 与 style 样式
+    // 4. 清洗 HTML 并允许 pre, code 代码块，以及 table, tbody 等表格标签，以及 referrerpolicy 属性（安全起见已彻底禁用内联 style 样式）
     const cleanHtml = DOMPurify.sanitize(`${fileTreeHtml}<div class="github-readme-wrapper">${readmeHtml}</div>`, {
       ALLOWED_TAGS: [
         'p', 'img', 'video', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 

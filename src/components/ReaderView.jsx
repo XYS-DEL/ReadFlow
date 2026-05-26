@@ -1,4 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
+
+// 【DOMPurify 渲染侧防御加固：高危 CSS 属性拦截拦截】
+DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+  if (data.attrName === 'style') {
+    const value = data.attrValue;
+    if (
+      /url\s*\(/i.test(value) ||
+      /expression/i.test(value) ||
+      /behavior/i.test(value) ||
+      /position\s*:\s*(fixed|absolute|sticky)/i.test(value) ||
+      /z-index/i.test(value)
+    ) {
+      data.attrValue = ''; // 强行清空
+    }
+  }
+});
+
 import { 
   ArrowLeft, 
   Settings, 
@@ -352,10 +370,20 @@ export default function ReaderView({ article, theme, setTheme, onBack }) {
             </span>
           </div>
 
-          {/* 渲染经过净化清洗的正文 HTML */}
+          {/* 渲染经过净化清洗的正文 HTML（二次安全过滤，杜绝 localStorage XSS 绕过） */}
           <div 
             className="reader-body"
-            dangerouslySetInnerHTML={{ __html: article.content }} 
+            dangerouslySetInnerHTML={{ 
+              __html: DOMPurify.sanitize(article.content || '', {
+                ALLOWED_TAGS: [
+                  'p', 'img', 'video', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
+                  'ul', 'ol', 'li', 'blockquote', 'strong', 'em', 'span', 'br', 'a', 
+                  'section', 'fieldset', 'div', 'pre', 'code',
+                  'table', 'thead', 'tbody', 'tr', 'th', 'td'
+                ],
+                ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'style', 'referrerpolicy']
+              }) 
+            }} 
           />
         </article>
       </main>

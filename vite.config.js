@@ -24,6 +24,44 @@ export default defineConfig({
                 return;
               }
 
+              // 【SSRF 安全防御系统】
+              // 1. 协议严格校验，仅允许 http: 和 https: 协议
+              let parsedTargetUrl;
+              try {
+                parsedTargetUrl = new URL(targetUrl);
+              } catch (urlErr) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                res.end('Invalid target URL format.');
+                return;
+              }
+
+              if (parsedTargetUrl.protocol !== 'http:' && parsedTargetUrl.protocol !== 'https:') {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                res.end('Security Block: Prohibited protocol. Only HTTP and HTTPS are allowed.');
+                return;
+              }
+
+              // 2. 主机地址深度黑名单，严防探测本地/局域网及云端元数据服务
+              const hostname = parsedTargetUrl.hostname.toLowerCase();
+              const isPrivate = 
+                hostname === 'localhost' || 
+                hostname === '127.0.0.1' || 
+                hostname === '0.0.0.0' || 
+                hostname === '::1' ||
+                /^10\./.test(hostname) || 
+                /^192\.168\./.test(hostname) || 
+                /^169\.254\./.test(hostname) || 
+                /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+              if (isPrivate) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                res.end('Security Block: Access denied to local and intranet URLs.');
+                return;
+              }
+
               // 记录请求日志
               fs.appendFileSync('proxy_requests.log', `${new Date().toISOString()} - 请求抓取: ${targetUrl}\n`);
 

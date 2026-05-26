@@ -15,6 +15,7 @@ export default function App() {
   
   // 用于支持抓取一键取消的网络中断器，体验流畅极佳
   const abortControllerRef = useRef(null);
+  const errorTimeoutRef = useRef(null);
   
   // 剪贴板弹窗检测状态
   const [clipboardUrl, setClipboardUrl] = useState('');
@@ -27,9 +28,40 @@ export default function App() {
     const savedBookmarks = localStorage.getItem('readflow_bookmarks');
     const savedTheme = localStorage.getItem('readflow_global_theme');
 
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
-    if (savedBookmarks) setBookmarks(JSON.parse(savedBookmarks));
-    if (savedTheme) setTheme(savedTheme);
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed)) {
+          setHistory(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse readflow_history from localStorage, resetting history.', e);
+        localStorage.removeItem('readflow_history');
+      }
+    }
+    
+    if (savedBookmarks) {
+      try {
+        const parsed = JSON.parse(savedBookmarks);
+        if (Array.isArray(parsed)) {
+          setBookmarks(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse readflow_bookmarks from localStorage, resetting bookmarks.', e);
+        localStorage.removeItem('readflow_bookmarks');
+      }
+    }
+    
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+
+    // 卸载时清理错误提示定时器
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+    };
   }, []);
 
   // 2. 主题持久化
@@ -86,7 +118,7 @@ export default function App() {
         // 添加到历史记录 (避免重复)
         setHistory(prev => {
           const filtered = prev.filter(item => item.title !== mockArticle.title);
-          const updated = [mockArticle, ...filtered].slice(0, 30);
+          const updated = [mockArticle, ...filtered].slice(0, 15);
           localStorage.setItem('readflow_history', JSON.stringify(updated));
           return updated;
         });
@@ -112,10 +144,10 @@ export default function App() {
 
       setActiveArticle(newArticle);
       
-      // 添加到历史记录头部 (上限 30 篇，防爆存储)
+      // 添加到历史记录头部 (上限 15 篇，防爆存储，保护 localStorage 5MB 限制)
       setHistory(prev => {
         const filtered = prev.filter(item => item.url !== url && item.title !== newArticle.title);
-        const updated = [newArticle, ...filtered].slice(0, 30);
+        const updated = [newArticle, ...filtered].slice(0, 15);
         localStorage.setItem('readflow_history', JSON.stringify(updated));
         return updated;
       });
@@ -128,8 +160,11 @@ export default function App() {
       console.error(err);
       setErrorMessage(err.message || '抓取文章失败，请检查网址是否正确。');
       
-      // 3秒后自动清除错误弹窗
-      setTimeout(() => {
+      // 3秒后自动清除错误弹窗 (防卸载后 setState 内存泄露)
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+      errorTimeoutRef.current = setTimeout(() => {
         setErrorMessage('');
       }, 4000);
     } finally {

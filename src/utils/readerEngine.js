@@ -2,6 +2,23 @@ import { Readability } from '@mozilla/readability';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
+// 【DOMPurify 全局防御加固：高危 CSS 属性拦截钩子】
+// 允许常规的布局与间距样式，但强行干掉内联 CSS 注入中涉及的 url() 加载、高危定位遮罩（UI Phishing 钓鱼）与 iframe 逃逸
+DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+  if (data.attrName === 'style') {
+    const value = data.attrValue;
+    if (
+      /url\s*\(/i.test(value) || // 严防远程外发数据攻击 background: url(attacker.com)
+      /expression/i.test(value) || // 严防旧版 IE CSS 表达式 XSS 执行
+      /behavior/i.test(value) || // 严防 behavior 脚本注入
+      /position\s*:\s*(fixed|absolute|sticky)/i.test(value) || // 严防 UI 层叠覆盖遮罩钓鱼，只保留 relative 和 static
+      /z-index/i.test(value) // 配合定位的高优先级覆盖攻击，必须铲除
+    ) {
+      data.attrValue = ''; // 一旦命中任何一项，强行清空该节点的 style 属性，保障绝对安全！
+    }
+  }
+});
+
 /**
  * 智能抓取并提取网页正文 (支持 Capacitor 原生桥接与 Web 代理)
  * @param {string} url 目标网页网址

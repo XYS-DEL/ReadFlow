@@ -2,23 +2,6 @@ import { Readability } from '@mozilla/readability';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
-// 【DOMPurify 全局防御加固：高危 CSS 属性拦截钩子】
-// 允许常规的布局与间距样式，但强行干掉内联 CSS 注入中涉及的 url() 加载、高危定位遮罩（UI Phishing 钓鱼）与 iframe 逃逸
-DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
-  if (data.attrName === 'style') {
-    const value = data.attrValue;
-    if (
-      /url\s*\(/i.test(value) || // 严防远程外发数据攻击 background: url(attacker.com)
-      /expression/i.test(value) || // 严防旧版 IE CSS 表达式 XSS 执行
-      /behavior/i.test(value) || // 严防 behavior 脚本注入
-      /position\s*:\s*(fixed|absolute|sticky)/i.test(value) || // 严防 UI 层叠覆盖遮罩钓鱼，只保留 relative 和 static
-      /z-index/i.test(value) // 配合定位的高优先级覆盖攻击，必须铲除
-    ) {
-      data.attrValue = ''; // 一旦命中任何一项，强行清空该节点的 style 属性，保障绝对安全！
-    }
-  }
-});
-
 /**
  * 智能抓取并提取网页正文 (支持 Capacitor 原生桥接与 Web 代理)
  * @param {string} url 目标网页网址
@@ -135,7 +118,7 @@ export async function extractArticle(url, abortSignal) {
         'ul', 'ol', 'li', 'blockquote', 'strong', 'em', 'span', 'br', 'a', 
         'section', 'fieldset', 'div', 'pre', 'code'
       ],
-      ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'style', 'referrerpolicy']
+      ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'referrerpolicy']
     });
 
     return {
@@ -176,6 +159,17 @@ export async function extractArticle(url, abortSignal) {
       fileItems.push({ name, isDir });
     });
 
+    // Helper: 安全的 HTML 转义函数，防御项目目录文件名 XSS 注入（纵深防御）
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
     // 2. 生成目录结构的 HTML 布局
     let fileTreeHtml = '';
     if (fileItems.length > 0) {
@@ -197,7 +191,7 @@ export async function extractArticle(url, abortSignal) {
             ${uniqueFileItems.map(item => `
               <div class="github-tree-item">
                 <span class="github-tree-icon">${item.isDir ? '📁' : '📄'}</span>
-                <span class="github-tree-name">${item.name}</span>
+                <span class="github-tree-name">${escapeHtml(item.name)}</span>
               </div>
             `).join('')}
           </div>
@@ -210,18 +204,25 @@ export async function extractArticle(url, abortSignal) {
     let textContent = '';
     let parsedGitee = false;
 
-    // Helper: HTML entity 解码函数，保证极速稳定地解码所有被 HTML 转义的原始 Markdown / HTML 标签
+    // Helper: HTML entity 解码函数，利用浏览器原生 DOMParser 实现完美、全面的 HTML 实体解析（支持任意进制与命名实体）
     const decodeHtmlEntities = (str) => {
       if (!str) return '';
-      return str
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&#x000A;/g, '\n')
-        .replace(/&#x0A;/g, '\n')
-        .replace(/&nbsp;/g, ' ');
+      try {
+        const docParser = new DOMParser();
+        const parsedDoc = docParser.parseFromString(str, 'text/html');
+        return parsedDoc.documentElement.textContent || str;
+      } catch (e) {
+        console.warn('[解码警告] 原生 DOMParser 解码失败，启用备用实体替换方案', e);
+        return str
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&#x000A;/g, '\n')
+          .replace(/&#x0A;/g, '\n')
+          .replace(/&nbsp;/g, ' ');
+      }
     };
 
     // 3.1 针对 Gitee 平台的隐藏 raw markdown textarea 进行精准定向捕获
@@ -306,7 +307,7 @@ export async function extractArticle(url, abortSignal) {
         'section', 'fieldset', 'div', 'pre', 'code',
         'table', 'thead', 'tbody', 'tr', 'th', 'td' // 核心解禁：表格标签白名单！
       ],
-      ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'style', 'referrerpolicy']
+      ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'referrerpolicy']
     });
 
     return {

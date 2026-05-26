@@ -1,22 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
-
-// 【DOMPurify 渲染侧防御加固：高危 CSS 属性拦截拦截】
-DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
-  if (data.attrName === 'style') {
-    const value = data.attrValue;
-    if (
-      /url\s*\(/i.test(value) ||
-      /expression/i.test(value) ||
-      /behavior/i.test(value) ||
-      /position\s*:\s*(fixed|absolute|sticky)/i.test(value) ||
-      /z-index/i.test(value)
-    ) {
-      data.attrValue = ''; // 强行清空
-    }
-  }
-});
-
 import { 
   ArrowLeft, 
   Settings, 
@@ -381,7 +364,7 @@ export default function ReaderView({ article, theme, setTheme, onBack }) {
                   'section', 'fieldset', 'div', 'pre', 'code',
                   'table', 'thead', 'tbody', 'tr', 'th', 'td'
                 ],
-                ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'style', 'referrerpolicy']
+                ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'referrerpolicy']
               }) 
             }} 
           />

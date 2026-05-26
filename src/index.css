@@ -1,0 +1,1043 @@
+/* ==========================================================================
+   ReadFlow - Design System & Modern Global Styles
+   ========================================================================== */
+
+/* 字体定义与动画变量 */
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Lora', 'Noto Serif SC', 'Georgia', serif;
+  --transition-smooth: all 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+  --transition-fast: all 0.18s ease;
+  --border-radius-sm: 8px;
+  --border-radius-md: 14px;
+  --border-radius-lg: 24px;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
+
+/* ==========================================================================
+   1. 主题系统 (6大核心配色方案)
+   ========================================================================== */
+
+/* 1.1 晨曦白 (Morning Light) - 柔和的亮色高对比度 */
+.theme-morning {
+  --bg-app: hsl(40, 20%, 97%);
+  --bg-card: hsl(0, 0%, 100%);
+  --bg-input: hsl(0, 0%, 100%);
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --text-main: hsl(20, 12%, 16%);
+  --text-muted: hsl(20, 8%, 46%);
+  --border-color: hsl(40, 10%, 88%);
+  --primary: hsl(270, 75%, 60%);
+  --primary-hover: hsl(270, 75%, 52%);
+  --primary-glow: rgba(138, 43, 226, 0.15);
+  --focus-line-bg: rgba(138, 43, 226, 0.07);
+  --highlight-word: hsl(45, 100%, 78%);
+  --shadow-color: rgba(60, 50, 40, 0.06);
+}
+
+/* 1.2 护眼绿 (Eye-Care Green) - 经典防疲劳色 */
+.theme-green {
+  --bg-app: hsl(120, 30%, 93%);
+  --bg-card: hsl(120, 25%, 96%);
+  --bg-input: hsl(120, 25%, 97%);
+  --bg-glass: rgba(235, 247, 235, 0.85);
+  --text-main: hsl(120, 35%, 12%);
+  --text-muted: hsl(120, 15%, 38%);
+  --border-color: hsl(120, 20%, 85%);
+  --primary: hsl(145, 65%, 32%);
+  --primary-hover: hsl(145, 65%, 26%);
+  --primary-glow: rgba(34, 139, 34, 0.12);
+  --focus-line-bg: rgba(34, 139, 34, 0.06);
+  --highlight-word: hsl(60, 100%, 80%);
+  --shadow-color: rgba(30, 45, 30, 0.05);
+}
+
+/* 1.3 羊皮纸 (Parchment Sepia) - 极致复古人文 */
+.theme-parchment {
+  --bg-app: hsl(36, 40%, 89%);
+  --bg-card: hsl(36, 35%, 93%);
+  --bg-input: hsl(36, 35%, 94%);
+  --bg-glass: rgba(238, 224, 202, 0.85);
+  --text-main: hsl(25, 45%, 11%);
+  --text-muted: hsl(25, 25%, 35%);
+  --border-color: hsl(36, 25%, 80%);
+  --primary: hsl(24, 55%, 36%);
+  --primary-hover: hsl(24, 55%, 28%);
+  --primary-glow: rgba(139, 69, 19, 0.12);
+  --focus-line-bg: rgba(139, 69, 19, 0.06);
+  --highlight-word: hsl(45, 100%, 75%);
+  --shadow-color: rgba(65, 50, 40, 0.08);
+}
+
+/* 1.4 优雅灰 (Graceful Grey) - 低饱和度高级感 */
+.theme-grey {
+  --bg-app: hsl(210, 12%, 91%);
+  --bg-card: hsl(210, 10%, 94%);
+  --bg-input: hsl(210, 10%, 95%);
+  --bg-glass: rgba(228, 233, 237, 0.85);
+  --text-main: hsl(210, 20%, 15%);
+  --text-muted: hsl(210, 10%, 42%);
+  --border-color: hsl(210, 12%, 82%);
+  --primary: hsl(210, 50%, 38%);
+  --primary-hover: hsl(210, 50%, 30%);
+  --primary-glow: rgba(70, 130, 180, 0.15);
+  --focus-line-bg: rgba(70, 130, 180, 0.06);
+  --highlight-word: hsl(50, 90%, 80%);
+  --shadow-color: rgba(40, 45, 50, 0.07);
+}
+
+/* 1.5 深空灰 (Space Dark) - 现代护眼暗色 */
+.theme-space {
+  --bg-app: hsl(220, 18%, 13%);
+  --bg-card: hsl(220, 16%, 17%);
+  --bg-input: hsl(220, 16%, 19%);
+  --bg-glass: rgba(28, 32, 42, 0.85);
+  --text-main: hsl(220, 12%, 84%);
+  --text-muted: hsl(220, 8%, 56%);
+  --border-color: hsl(220, 12%, 22%);
+  --primary: hsl(265, 75%, 66%);
+  --primary-hover: hsl(265, 75%, 58%);
+  --primary-glow: rgba(147, 112, 219, 0.25);
+  --focus-line-bg: rgba(147, 112, 219, 0.1);
+  --highlight-word: hsl(260, 60%, 32%);
+  --shadow-color: rgba(0, 0, 0, 0.25);
+}
+
+/* 1.6 极夜黑 (Midnight Black) - 纯黑省电 */
+.theme-midnight {
+  --bg-app: hsl(0, 0%, 0%);
+  --bg-card: hsl(0, 0%, 5%);
+  --bg-input: hsl(0, 0%, 8%);
+  --bg-glass: rgba(0, 0, 0, 0.9);
+  --text-main: hsl(0, 0%, 82%);
+  --text-muted: hsl(0, 0%, 50%);
+  --border-color: hsl(0, 0%, 14%);
+  --primary: hsl(0, 0%, 88%);
+  --primary-hover: hsl(0, 0%, 98%);
+  --primary-glow: rgba(255, 255, 255, 0.15);
+  --focus-line-bg: rgba(255, 255, 255, 0.08);
+  --highlight-word: hsl(0, 0%, 22%);
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   2. 基础布局与排版
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  transition: background-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 隐藏滚动条但保留滚动能力 (给移动端带来极简观感) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   3. 高级 UI 界面组件 (主控制台)
+   ========================================================================== */
+
+.app-container {
+  width: 100%;
+  max-width: 680px; /* 黄金阅读视距宽度 */
+  margin: 0 auto;
+  padding: 24px 16px 120px 16px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+/* 顶部导航头 */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  animation: fadeInDown 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 16px var(--primary-glow);
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--text-main), var(--text-muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 主动操作仪表盘 */
+.dashboard-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 28px;
+  transition: var(--transition-smooth);
+  animation: fadeInUp 0.6s cubic-bezier(0.25, 1, 0.5, 1) 0.1s both;
+}
+
+.dashboard-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-glow);
+}
+
+.welcome-title {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.welcome-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+/* 毛玻璃输入框与操作区域 */
+.input-group {
+  display: flex;
+  position: relative;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  padding: 4px;
+  transition: var(--transition-fast);
+  margin-bottom: 12px;
+}
+
+.input-group:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+
+.input-field {
+  flex-grow: 1;
+  border: none;
+  background: transparent;
+  padding: 12px 16px;
+  font-size: 15px;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+}
+
+.input-field:focus {
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-fast);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   4. 列表与历史记录卡片
+   ========================================================================== */
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 16px 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  animation: fadeInUp 0.6s cubic-bezier(0.25, 1, 0.5, 1) 0.2s both;
+}
+
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeInUp 0.6s cubic-bezier(0.25, 1, 0.5, 1) 0.25s both;
+}
+
+.article-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  transition: var(--transition-smooth);
+}
+
+.article-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.article-card-info {
+  flex-grow: 1;
+}
+
+.article-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-icon-danger {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+}
+
+.btn-icon-danger:hover {
+  color: hsl(0, 80%, 60%);
+  background: rgba(255, 0, 0, 0.05);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--border-radius-lg);
+  color: var(--text-muted);
+  gap: 12px;
+}
+
+/* ==========================================================================
+   5. 纯净阅读视图 (Reader Layout)
+   ========================================================================== */
+
+.reader-view {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-app);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  animation: slideInUp 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+  color: var(--text-main);
+}
+
+/* 阅读器头部控制器 */
+.reader-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.reader-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-circle:hover {
+  background: var(--border-color);
+}
+
+/* 核心阅读文章区域 */
+.reader-content-wrapper {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 40px 20px 120px 20px;
+  scroll-behavior: smooth;
+  position: relative;
+}
+
+.reader-article {
+  max-width: 620px; /* 黄金正文排版宽度 */
+  margin: 0 auto;
+  font-family: var(--font-serif);
+  line-height: 1.8;
+  letter-spacing: 0.5px;
+}
+
+.reader-title {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 16px;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
+}
+
+.reader-meta {
+  font-family: var(--font-sans);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* 经过 Readability 洗涤后的内容 CSS 定义 */
+.reader-body {
+  font-size: var(--read-font-size, 18px);
+  line-height: var(--read-line-height, 1.8);
+}
+
+.reader-body p {
+  margin-bottom: 1.6em;
+  text-indent: 0em; /* 现代阅读倾向于空行，而不是首行缩进 */
+  text-align: justify;
+}
+
+.reader-body h1, .reader-body h2, .reader-body h3, .reader-body h4 {
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  margin-top: 1.6em;
+  margin-bottom: 0.8em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.reader-body h1 { font-size: 1.5em; }
+.reader-body h2 { font-size: 1.35em; }
+.reader-body h3 { font-size: 1.2em; }
+
+.reader-body img, .reader-body video {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--border-radius-md);
+  margin: 1.5em 0;
+  box-shadow: var(--shadow-sm);
+  display: block;
+}
+
+.reader-body blockquote {
+  border-left: 4px solid var(--primary);
+  padding-left: 16px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 1.5em 0;
+}
+
+.reader-body ul, .reader-body ol {
+  margin: 1.5em 0;
+  padding-left: 24px;
+}
+
+.reader-body li {
+  margin-bottom: 0.6em;
+}
+
+.reader-body a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   6. 障碍辅助工具 (Focus Guide & settings)
+   ========================================================================== */
+
+/* 视线聚焦引导线 */
+.focus-line-overlay {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 80px; /* 视觉高亮框高度 */
+  background-color: var(--focus-line-bg);
+  border-top: 1.5px dashed var(--primary);
+  border-bottom: 1.5px dashed var(--primary);
+  pointer-events: none; /* 穿透鼠标点击 */
+  z-index: 5;
+  transition: top 0.15s ease-out; /* 随滚动平滑移动 */
+}
+
+/* 设置抽屉 (Settings Overlay) */
+.settings-drawer {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 20px;
+  z-index: 105;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: scaleIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.drawer-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* 字体控制 */
+.font-ctrl-group {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-segment {
+  flex-grow: 1;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-fast);
+}
+
+.btn-segment.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* 主题选择网格 */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.theme-btn {
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  border: 1.5px solid var(--border-color);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.theme-btn.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+/* ==========================================================================
+   7. 语音朗读控制面板 (TTS Panel)
+   ========================================================================== */
+
+.tts-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 480px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px 20px;
+  z-index: 102;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slideInUp 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tts-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tts-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-tts-primary {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.btn-tts-secondary {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tts-slider-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tts-slider {
+  flex-grow: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-color);
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.tts-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+/* 朗读单词/句子高亮 */
+.tts-highlight {
+  background-color: var(--highlight-word);
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+/* ==========================================================================
+   8. Keyframe 动画定义
+   ========================================================================== */
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translate(-50%, 100%) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUpFull {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.slide-in-up-full {
+  animation: slideInUpFull 0.45s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* ==========================================================================
+   9. 障碍友好型流光骨架屏 (Skeleton Loading Styles)
+   ========================================================================== */
+
+.skeleton-container {
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeIn 0.4s ease;
+}
+
+.skeleton-item {
+  border-radius: var(--border-radius-sm);
+  background: linear-gradient(
+    90deg, 
+    var(--border-color) 25%, 
+    var(--bg-card) 50%, 
+    var(--border-color) 75%
+  );
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.5s infinite ease-in-out;
+}
+
+.skeleton-title {
+  height: 38px;
+  width: 85%;
+  margin-bottom: 8px;
+}
+
+.skeleton-meta {
+  height: 18px;
+  width: 45%;
+  margin-bottom: 24px;
+  border-radius: 4px;
+}
+
+.skeleton-paragraph {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.skeleton-line {
+  height: 16px;
+}
+
+.skeleton-line.w-full { width: 100%; }
+.skeleton-line.w-95 { width: 95%; }
+.skeleton-line.w-90 { width: 90%; }
+.skeleton-line.w-85 { width: 85%; }
+.skeleton-line.w-75 { width: 75%; }
+.skeleton-line.w-60 { width: 60%; }
+
+@keyframes loading-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================================================
+   10. 高质感代码排版与 GitHub 专属文件树样式 (Code Block & GitHub Themes)
+   ========================================================================== */
+
+/* 代码块容器 - 随主题自适应配色 */
+.reader-body pre {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  margin: 1.6em 0;
+  overflow-x: auto;
+  font-family: var(--font-mono), Consolas, Monaco, monospace;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-main);
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+
+.reader-body pre code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre;
+}
+
+/* 行内代码微调 */
+.reader-body :not(pre) > code {
+  font-family: var(--font-mono), Consolas, Monaco, monospace;
+  background-color: var(--primary-glow);
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 600;
+  margin: 0 2px;
+  border: 1px solid rgba(var(--primary), 0.1);
+}
+
+/* GitHub 顶层文件树容器 */
+.github-file-tree {
+  background: var(--bg-card);
+  border: 1.5px dashed var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 20px;
+  margin-bottom: 32px;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+
+.github-tree-header {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.github-tree-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px 12px;
+}
+
+.github-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 6px;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-fast);
+}
+
+.github-tree-item:hover {
+  background-color: var(--primary-glow);
+  color: var(--primary);
+}
+
+.github-tree-icon {
+  font-size: 14px;
+}
+
+.github-tree-name {
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
+
+/* GitHub README 包装层微调 */
+.github-readme-wrapper {
+  margin-top: 28px;
+}
+
+.github-readme-wrapper h1, 
+.github-readme-wrapper h2, 
+.github-readme-wrapper h3 {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  margin-top: 1.8em;
+  margin-bottom: 0.8em;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   11. 高质感 Markdown 表格样式 (Standard Markdown Table Styles)
+   ========================================================================== */
+
+.reader-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.8em 0;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: left;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.reader-body th {
+  background-color: var(--bg-input);
+  color: var(--text-main);
+  font-weight: 650;
+  padding: 12px 16px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.reader-body td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.reader-body tr:nth-child(even) {
+  background-color: var(--bg-input); /* 优雅斑马纹 */
+}
+
+.reader-body tr:hover {
+  background-color: var(--primary-glow);
+}
+
+
+

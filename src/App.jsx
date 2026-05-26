@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import ReaderView from './components/ReaderView';
 import SkeletonView from './components/SkeletonView';
 import { Clipboard, Sparkles, BookOpen, AlertCircle } from 'lucide-react';
+import { App as CapacitorApp } from '@capacitor/app';
 
 export default function App() {
   const [history, setHistory] = useState([]);
@@ -63,6 +64,35 @@ export default function App() {
       }
     };
   }, []);
+
+  // 1.1 监听 Android 系统物理返回键，防止直接退出应用，提升原生级操作流畅度
+  useEffect(() => {
+    let backListener = null;
+
+    const setupBackListener = async () => {
+      try {
+        backListener = await CapacitorApp.addListener('backButton', () => {
+          // 如果当前处于 ReaderView 阅读器界面 (activeArticle 有值)，拦截返回键并返回 Dashboard 主页
+          if (activeArticle) {
+            setActiveArticle(null);
+          } else {
+            // 如果已经在主页，则安全退出应用
+            CapacitorApp.exitApp();
+          }
+        });
+      } catch (err) {
+        console.log('App backButton listener is only active on native platforms.', err);
+      }
+    };
+
+    setupBackListener();
+
+    return () => {
+      if (backListener) {
+        backListener.remove();
+      }
+    };
+  }, [activeArticle]);
 
   // 2. 主题持久化
   useEffect(() => {

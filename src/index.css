@@ -1046,5 +1046,66 @@ body {
   background-color: var(--primary-glow);
 }
 
+/* ==========================================================================
+   12. 移动端响应式与视口微调 (Mobile Responsiveness)
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .app-container {
+    padding: 16px 12px;
+  }
+  
+  .dashboard-card {
+    padding: 24px 16px;
+  }
+  
+  .welcome-title {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  
+  .welcome-desc {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  
+  .input-group {
+    flex-direction: column;
+    background: transparent;
+    border: none;
+    padding: 0;
+    gap: 12px;
+    box-shadow: none !important;
+  }
+  
+  .input-field {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    width: 100%;
+    padding: 14px 16px;
+    transition: var(--transition-fast);
+    font-size: 14px;
+  }
+  
+  .input-field:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+  }
+  
+  .btn-primary {
+    width: 100%;
+    justify-content: center;
+    padding: 14px 20px;
+    border-radius: var(--border-radius-md);
+    font-size: 14px;
+    height: 48px; /* 保证高度合适 */
+  }
+  
+  .logo-text {
+    font-size: 18px;
+  }
+}
+
 
 

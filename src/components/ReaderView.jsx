@@ -12,10 +12,11 @@ import {
   Sliders,
   Type,
   BookOpen,
-  Eye
+  Eye,
+  Bookmark
 } from 'lucide-react';
 
-export default function ReaderView({ article, theme, setTheme, onBack }) {
+export default function ReaderView({ article, theme, setTheme, bookmarks = [], onToggleBookmark, onBack }) {
   const [showSettings, setShowSettings] = useState(false);
   const [fontSize, setFontSize] = useState(18); // px
   const [lineHeight, setLineHeight] = useState(1.8);
@@ -32,6 +33,8 @@ export default function ReaderView({ article, theme, setTheme, onBack }) {
   const contentRef = useRef(null);
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
   const utteranceRef = useRef(null);
+  
+  const isBookmarked = bookmarks.some(item => item && (item.url === article.url || item.title === article.title));
 
   // 从本地存储读取用户排版习惯
   useEffect(() => {
@@ -271,6 +274,15 @@ export default function ReaderView({ article, theme, setTheme, onBack }) {
             title="语音朗读"
           >
             <Volume2 size={20} />
+          </button>
+          
+          <button 
+            className={`btn-circle ${isBookmarked ? 'active' : ''}`} 
+            onClick={() => onToggleBookmark(article)}
+            style={isBookmarked ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : {}}
+            title={isBookmarked ? "取消收藏" : "加入收藏"}
+          >
+            <Bookmark size={20} fill={isBookmarked ? "var(--primary)" : "none"} />
           </button>
           
           <button 

@@ -13,6 +13,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState('parchment'); // 默认护眼复古羊皮纸
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('home'); // Dashboard 当前处于的标签页
   
   // 用于支持抓取一键取消的网络中断器，体验流畅极佳
   const abortControllerRef = useRef(null);
@@ -72,11 +73,14 @@ export default function App() {
     const setupBackListener = async () => {
       try {
         backListener = await CapacitorApp.addListener('backButton', () => {
-          // 如果当前处于 ReaderView 阅读器界面 (activeArticle 有值)，拦截返回键并返回 Dashboard 主页
+          // 如果当前处于 ReaderView 阅读器界面 (activeArticle 有值)，拦截返回键并返回 Dashboard 对应的 Tab 页
           if (activeArticle) {
             setActiveArticle(null);
+          } else if (activeTab !== 'home') {
+            // 如果在 Dashboard 的其他 Tab 页，返回到首页 'home' Tab
+            setActiveTab('home');
           } else {
-            // 如果已经在主页，则安全退出应用
+            // 如果已经在首页的 'home' Tab，则安全退出应用
             CapacitorApp.exitApp();
           }
         });
@@ -92,7 +96,7 @@ export default function App() {
         backListener.remove();
       }
     };
-  }, [activeArticle]);
+  }, [activeArticle, activeTab]);
 
   // 2. 主题持久化
   useEffect(() => {
@@ -234,6 +238,23 @@ export default function App() {
     });
   };
 
+  // 收藏与取消收藏切换 (在阅读器内通过点击按钮操作)
+  const handleToggleBookmark = (article) => {
+    setBookmarks(prev => {
+      const isBookmarked = prev.some(item => item.url === article.url || item.title === article.title);
+      let updated;
+      if (isBookmarked) {
+        // 移除收藏
+        updated = prev.filter(item => item.url !== article.url && item.title !== article.title);
+      } else {
+        // 加入收藏 (保存完整的文章数据以便离线阅读)
+        updated = [article, ...prev];
+      }
+      localStorage.setItem('readflow_bookmarks', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // ==========================================================================
   // 离线内置精美文章 (测试演示用)
   // ==========================================================================
@@ -315,7 +336,10 @@ export default function App() {
             onSelectArticle={handleSelectArticle}
             onDeleteHistory={handleDeleteHistory}
             onDeleteBookmark={handleDeleteBookmark}
+            onToggleBookmark={handleToggleBookmark}
             loading={loading}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
           />
         )
       ) : (
@@ -323,6 +347,8 @@ export default function App() {
           article={activeArticle}
           theme={theme}
           setTheme={setTheme}
+          bookmarks={bookmarks}
+          onToggleBookmark={handleToggleBookmark}
           onBack={() => setActiveArticle(null)}
         />
       )}

@@ -290,7 +290,7 @@ export async function extractArticle(url, abortSignal) {
             textContent = rawMarkdown;
           }
         } else {
-          readmeHtml = '<p style="color: var(--text-muted);">未能在主页中找到 README.md 文件内容。</p>';
+          readmeHtml = '<p class="github-readme-empty">未能在主页中找到 README.md 文件内容。</p>';
           textContent = '未找到 README.md';
         }
       }

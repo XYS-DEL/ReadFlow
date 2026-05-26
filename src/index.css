@@ -1000,6 +1000,13 @@ body {
   font-weight: 600;
 }
 
+.github-readme-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 20px;
+  text-align: center;
+}
+
 /* ==========================================================================
    11. 高质感 Markdown 表格样式 (Standard Markdown Table Styles)
    ========================================================================== */

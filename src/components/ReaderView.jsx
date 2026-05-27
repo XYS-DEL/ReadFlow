@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
+import { TextToSpeech as CapTTS } from '@capacitor-community/text-to-speech';
+import { Capacitor } from '@capacitor/core';
 import { 
   ArrowLeft, 
   Settings, 
@@ -33,6 +35,25 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const contentRef = useRef(null);
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
   const utteranceRef = useRef(null);
+
+  // 跨平台 Native TTS 控制变量及线程并发锁 (保障无缝步进高亮)
+  const isNativeTts = Capacitor.isNativePlatform();
+  const isPlayingRef = useRef(false);
+  const isPausedRef = useRef(false);
+  const activeIndexRef = useRef(-1);
+
+  // 实时保鲜同步，杜绝异步回调闭包及事件并发引发的值过期或段落重叠 Bug
+  useEffect(() => {
+    isPlayingRef.current = isTtsPlaying;
+  }, [isTtsPlaying]);
+
+  useEffect(() => {
+    isPausedRef.current = isTtsPaused;
+  }, [isTtsPaused]);
+
+  useEffect(() => {
+    activeIndexRef.current = activeParagraphIndex;
+  }, [activeParagraphIndex]);
   
   const isBookmarked = bookmarks.some(item => item && (item.url === article.url || item.title === article.title));
 
@@ -107,132 +128,153 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   // ==========================================================================
 
   const startTts = (startIndex = 0) => {
-    if (!synthRef.current) {
+    if (!isNativeTts && !synthRef.current) {
       alert('您的系统或设备暂不支持语音合成朗读（TTS）功能。');
       return;
     }
     if (paragraphs.length === 0) return;
-    stopTts(); // 确保先停止之前的
-
+    
     setIsTtsPlaying(true);
     setIsTtsPaused(false);
     playParagraph(startIndex);
   };
 
-  const playParagraph = (index) => {
-    if (!synthRef.current) return;
+  const playParagraph = async (index) => {
     if (index < 0 || index >= paragraphs.length) {
       stopTts();
       return;
     }
 
     setActiveParagraphIndex(index);
-    
-    try {
-      // 实例化 SpeechSynthesisUtterance
-      const utterance = new SpeechSynthesisUtterance(paragraphs[index]);
-      utteranceRef.current = utterance;
-      
-      // 设置语速与语言
-      utterance.rate = ttsSpeed;
-      utterance.lang = 'zh-CN'; // 强制定向中文
+    isPlayingRef.current = true;
+    isPausedRef.current = false;
+    setIsTtsPlaying(true);
+    setIsTtsPaused(false);
 
-      // 监听朗读完毕，自动播放下一段
-      utterance.onend = () => {
-        if (isTtsPlaying && !isTtsPaused) {
+    try {
+      if (isNativeTts) {
+        // A. 安卓原生 TTS 引擎播放分支
+        await CapTTS.stop();
+        
+        // 检查并发与打断锁状态，如果已经有更新的朗读线程，则此线程安全退出
+        if (!isPlayingRef.current || isPausedRef.current || activeIndexRef.current !== index) return;
+
+        await CapTTS.speak({
+          text: paragraphs[index],
+          lang: 'zh-CN',
+          rate: ttsSpeed,
+        });
+
+        // 异步朗读完毕后，若未被用户中途暂停或更换段落，平滑推进到下一段
+        if (isPlayingRef.current && !isPausedRef.current && activeIndexRef.current === index) {
           playParagraph(index + 1);
         }
-      };
+      } else {
+        // B. H5 网页 浏览器语音播放分支 (平滑降级)
+        if (!synthRef.current) return;
+        synthRef.current.cancel();
 
-      utterance.onerror = (e) => {
-        console.error('SpeechSynthesis error:', e);
-        if (e.error !== 'interrupted') {
-          stopTts();
-        }
-      };
+        const utterance = new SpeechSynthesisUtterance(paragraphs[index]);
+        utteranceRef.current = utterance;
+        
+        utterance.rate = ttsSpeed;
+        utterance.lang = 'zh-CN';
 
-      synthRef.current.speak(utterance);
+        utterance.onend = () => {
+          if (isPlayingRef.current && !isPausedRef.current && activeIndexRef.current === index) {
+            playParagraph(index + 1);
+          }
+        };
+
+        utterance.onerror = (e) => {
+          console.error('SpeechSynthesis error:', e);
+          if (e.error !== 'interrupted') {
+            stopTts();
+          }
+        };
+
+        synthRef.current.speak(utterance);
+      }
     } catch (err) {
-      console.error('TTS Speak failed:', err);
+      console.error('TTS Playback failed:', err);
       stopTts();
     }
   };
 
-  const pauseTts = () => {
-    if (!synthRef.current) return;
+  const pauseTts = async () => {
+    setIsTtsPaused(true);
+    isPausedRef.current = true;
     try {
-      if (synthRef.current.speaking && !synthRef.current.paused) {
-        synthRef.current.pause();
-        setIsTtsPaused(true);
+      if (isNativeTts) {
+        // 安卓原生 TTS 停止播放以达到暂停效果
+        await CapTTS.stop();
+      } else {
+        if (synthRef.current && synthRef.current.speaking && !synthRef.current.paused) {
+          synthRef.current.pause();
+        }
       }
     } catch (err) {
       console.error('TTS Pause failed:', err);
     }
   };
 
-  const resumeTts = () => {
-    if (!synthRef.current) return;
+  const resumeTts = async () => {
+    setIsTtsPaused(false);
+    isPausedRef.current = false;
     try {
-      if (synthRef.current.paused) {
-        synthRef.current.resume();
-        setIsTtsPaused(false);
+      if (isNativeTts) {
+        // 安卓原生 TTS 重新从头播放当前段落
+        playParagraph(activeParagraphIndex >= 0 ? activeParagraphIndex : 0);
       } else {
-        // 预防异常的 resume 兜底
-        startTts(activeParagraphIndex >= 0 ? activeParagraphIndex : 0);
+        if (synthRef.current && synthRef.current.paused) {
+          synthRef.current.resume();
+        } else {
+          playParagraph(activeParagraphIndex >= 0 ? activeParagraphIndex : 0);
+        }
       }
     } catch (err) {
       console.error('TTS Resume failed:', err);
     }
   };
 
-  const stopTts = () => {
-    if (!synthRef.current) return;
+  const stopTts = async () => {
+    setIsTtsPlaying(false);
+    setIsTtsPaused(false);
+    isPlayingRef.current = false;
+    isPausedRef.current = false;
+    setActiveParagraphIndex(-1);
+    
     try {
-      synthRef.current.cancel();
+      if (isNativeTts) {
+        await CapTTS.stop();
+      } else {
+        if (synthRef.current) {
+          synthRef.current.cancel();
+        }
+      }
     } catch (err) {
       console.error('TTS Cancel failed:', err);
     }
-    setIsTtsPlaying(false);
-    setIsTtsPaused(false);
-    setActiveParagraphIndex(-1);
     utteranceRef.current = null;
   };
 
   const nextParagraph = () => {
-    if (!synthRef.current) return;
     if (activeParagraphIndex < paragraphs.length - 1) {
-      try {
-        synthRef.current.cancel();
-      } catch (err) {
-        console.error('TTS Cancel failed:', err);
-      }
       playParagraph(activeParagraphIndex + 1);
     }
   };
 
   const prevParagraph = () => {
-    if (!synthRef.current) return;
     if (activeParagraphIndex > 0) {
-      try {
-        synthRef.current.cancel();
-      } catch (err) {
-        console.error('TTS Cancel failed:', err);
-      }
       playParagraph(activeParagraphIndex - 1);
     }
   };
 
-  // 监听语速变化
-  const handleSpeedChange = (newSpeed) => {
+  // 监听语速变化并实时生效
+  const handleSpeedChange = async (newSpeed) => {
     setTtsSpeed(newSpeed);
-    if (!synthRef.current) return;
     if (isTtsPlaying && !isTtsPaused) {
-      try {
-        // 语速变化需要重新启动当前段落才能生效
-        synthRef.current.cancel();
-      } catch (err) {
-        console.error('TTS Cancel failed:', err);
-      }
+      // 语速变化时，立即停止当前段落并以新语速重新开始该段朗读
       playParagraph(activeParagraphIndex);
     }
   };

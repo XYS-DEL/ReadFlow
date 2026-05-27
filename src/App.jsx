@@ -25,6 +25,18 @@ export default function App() {
   const [showClipboardToast, setShowClipboardToast] = useState(false);
   const [lastCheckedClipboardText, setLastCheckedClipboardText] = useState('');
 
+  // 智能剪贴板扫描的最新状态快照 Refs (防 stale closure 闭包数据过期)
+  const historyRef = useRef([]);
+  const bookmarksRef = useRef([]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  useEffect(() => {
+    bookmarksRef.current = bookmarks;
+  }, [bookmarks]);
+
   // 1. 初始化加载本地数据
   useEffect(() => {
     const savedHistory = localStorage.getItem('readflow_history');
@@ -122,9 +134,20 @@ export default function App() {
         }
 
         const trimmed = text.trim();
+        if (!trimmed) return;
         
         // 匹配 HTTP/HTTPS 网址且和上一次检查的不同
         if (/^https?:\/\/[^\s]+$/i.test(trimmed) && trimmed !== lastCheckedClipboardText) {
+          // 剪贴板“赌徒”智能排重过滤：检查该 URL 是否已经存在于历史记录或收藏夹中
+          const isAlreadyRead = historyRef.current.some(item => item && item.url === trimmed);
+          const isAlreadyBookmarked = bookmarksRef.current.some(item => item && item.url === trimmed);
+          
+          if (isAlreadyRead || isAlreadyBookmarked) {
+            // 如果已读过或收藏过，直接静默标记，绝不弹出烦人 Toast
+            setLastCheckedClipboardText(trimmed);
+            return;
+          }
+
           setClipboardUrl(trimmed);
           setShowClipboardToast(true);
           setLastCheckedClipboardText(trimmed);

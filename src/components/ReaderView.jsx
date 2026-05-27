@@ -29,8 +29,9 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const [isTtsPlaying, setIsTtsPlaying] = useState(false);
   const [isTtsPaused, setIsTtsPaused] = useState(false);
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-  const [activeParagraphIndex, setActiveParagraphIndex] = useState(-1);
-  const [paragraphs, setParagraphs] = useState([]);
+  const [activeSentenceIndex, setActiveSentenceIndex] = useState(-1);
+  const [sentences, setSentences] = useState([]); // 保持状态命名，为全局独立朗读句子数组
+  const [sanitizedHtml, setSanitizedHtml] = useState('');
   
   const contentRef = useRef(null);
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
@@ -38,22 +39,7 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
 
   // 跨平台 Native TTS 控制变量及线程并发锁 (保障无缝步进高亮)
   const isNativeTts = Capacitor.isNativePlatform();
-  const isPlayingRef = useRef(false);
-  const isPausedRef = useRef(false);
-  const activeIndexRef = useRef(-1);
-
-  // 实时保鲜同步，杜绝异步回调闭包及事件并发引发的值过期或段落重叠 Bug
-  useEffect(() => {
-    isPlayingRef.current = isTtsPlaying;
-  }, [isTtsPlaying]);
-
-  useEffect(() => {
-    isPausedRef.current = isTtsPaused;
-  }, [isTtsPaused]);
-
-  useEffect(() => {
-    activeIndexRef.current = activeParagraphIndex;
-  }, [activeParagraphIndex]);
+  const speechSessionRef = useRef(0); // 线程会话计数器，杜绝异步回调闭包及事件并发引发的值过期或段落重叠 Bug
   
   const isBookmarked = bookmarks.some(item => item && (item.url === article.url || item.title === article.title));
 
@@ -84,44 +70,149 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
     }
   }, [fontSize, lineHeight, useSerif, showFocusLine]);
 
-  // 解析并收集所有用于朗读的段落文本
+  // 深度句级解析引擎：分割正文并建立全局高精准 Span 锚点，100% 保留 HTML 内部格式和元素布局 (如超链接、粗体等)
   useEffect(() => {
     if (article && article.content) {
-      // 临时在后台解析 HTML 并剥离干净的段落内容
       const parser = new DOMParser();
       const doc = parser.parseFromString(article.content, 'text/html');
-      const pElements = doc.querySelectorAll('p');
-      const textParagraphs = Array.from(pElements)
-        .map(el => el.textContent.trim())
-        .filter(text => text.length > 0);
       
-      setParagraphs(textParagraphs);
+      let sentenceGlobalIndex = 0;
+      const sentenceList = [];
+      let currentSentenceAccumulator = "";
+      
+      // 中英文通用句子结束符判定集合
+      const sentenceEnds = new Set(['。', '！', '？', '；', '\n', '\r', ';', '!', '?']);
+
+      // 1. 递归获取所有待处理的文本节点 (深度优先搜索，确保视觉展示顺序一致)
+      const textNodes = [];
+      function findTextNodes(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const tagName = node.tagName.toLowerCase();
+          // 跳过不需要朗读和高亮的特殊排版元素
+          if (['script', 'style', 'pre', 'code', 'img', 'video', 'audio', 'iframe', 'canvas'].includes(tagName)) {
+            return;
+          }
+        }
+        
+        if (node.nodeType === Node.TEXT_NODE) {
+          textNodes.push(node);
+          return;
+        }
+        
+        for (let child = node.firstChild; child; child = child.nextSibling) {
+          findTextNodes(child);
+        }
+      }
+      
+      findTextNodes(doc.body);
+
+      // 2. 对每个文本节点进行句级细分和 DOM 包装
+      let lastBlockParent = null;
+
+      textNodes.forEach((node) => {
+        const text = node.nodeValue;
+        if (!text) return;
+
+        // 如果文本节点只包含空白字符，不进行包裹，保持原样，防止破坏缩进或换行布局
+        if (text.trim().length === 0) {
+          return;
+        }
+
+        // 获取该文本节点最近的块级父容器
+        const blockParent = node.parentElement ? node.parentElement.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, div, td, th') : null;
+        
+        // 核心亮点：如果跨越了不同的块级父容器，强制闭合上一句，避免朗读高亮跨段落显示，导致排版视觉割裂
+        if (blockParent !== lastBlockParent) {
+          if (currentSentenceAccumulator.trim().length > 0) {
+            sentenceList.push(currentSentenceAccumulator.trim());
+            sentenceGlobalIndex++;
+          }
+          currentSentenceAccumulator = "";
+          lastBlockParent = blockParent;
+        }
+
+        const segments = [];
+        let temp = "";
+        
+        // 逐字扫描，根据句子标点进行切片
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          temp += char;
+          if (sentenceEnds.has(char)) {
+            segments.push({ text: temp, finished: true });
+            temp = "";
+          }
+        }
+        if (temp.length > 0) {
+          segments.push({ text: temp, finished: false });
+        }
+
+        const fragment = doc.createDocumentFragment();
+        
+        segments.forEach((seg) => {
+          // 如果分段全是空白，则作为普通文本节点插入，不包裹 span，保留原样
+          if (seg.text.trim().length === 0) {
+            fragment.appendChild(doc.createTextNode(seg.text));
+            return;
+          }
+
+          // 开启/累加当前句子的文本
+          currentSentenceAccumulator += seg.text;
+          
+          const span = doc.createElement('span');
+          span.className = 'tts-sentence';
+          span.setAttribute('data-sentence-idx', sentenceGlobalIndex.toString());
+          span.textContent = seg.text;
+          fragment.appendChild(span);
+
+          if (seg.finished) {
+            const finalSentence = currentSentenceAccumulator.trim();
+            if (finalSentence.length > 0) {
+              sentenceList.push(finalSentence);
+              sentenceGlobalIndex++;
+            }
+            currentSentenceAccumulator = "";
+          }
+        });
+
+        if (node.parentNode) {
+          node.parentNode.replaceChild(fragment, node);
+        }
+      });
+
+      // 3. 兜底处理：如果全文结束时还有未闭合的句子，加入列表
+      if (currentSentenceAccumulator.trim().length > 0) {
+        sentenceList.push(currentSentenceAccumulator.trim());
+        sentenceGlobalIndex++;
+      }
+
+      setSanitizedHtml(doc.body.innerHTML);
+      setSentences(sentenceList);
     }
     
-    // 组件卸载时停止 TTS
     return () => {
       stopTts();
     };
   }, [article]);
 
-  // 监听朗读段落变化，动态在 DOM 中高亮对应的段落
+  // 监听朗读句子变化，在 DOM 中进行像素级高亮与丝滑居中滚动
   useEffect(() => {
-    if (!contentRef.current || paragraphs.length === 0) return;
+    if (!contentRef.current || sentences.length === 0) return;
     
-    const pDomElements = contentRef.current.querySelectorAll('.reader-body p');
+    const sentenceElements = contentRef.current.querySelectorAll('.reader-body .tts-sentence');
     
     // 先清除所有高亮
-    pDomElements.forEach(el => el.classList.remove('tts-highlight'));
+    sentenceElements.forEach(el => el.classList.remove('tts-highlight'));
     
-    if (activeParagraphIndex >= 0 && activeParagraphIndex < pDomElements.length) {
-      const activeEl = pDomElements[activeParagraphIndex];
-      if (activeEl) {
-        activeEl.classList.add('tts-highlight');
+    if (activeSentenceIndex >= 0) {
+      const activeSpans = contentRef.current.querySelectorAll(`.reader-body .tts-sentence[data-sentence-idx="${activeSentenceIndex}"]`);
+      if (activeSpans && activeSpans.length > 0) {
+        activeSpans.forEach(span => span.classList.add('tts-highlight'));
         // 丝滑滚动到视野正中，对注意力障碍者极其友好
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        activeSpans[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  }, [activeParagraphIndex, paragraphs]);
+  }, [activeSentenceIndex, sentences]);
 
   // ==========================================================================
   // TTS 语音朗读控制逻辑
@@ -132,64 +223,75 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
       alert('您的系统或设备暂不支持语音合成朗读（TTS）功能。');
       return;
     }
-    if (paragraphs.length === 0) return;
+    if (sentences.length === 0) return;
     
     setIsTtsPlaying(true);
     setIsTtsPaused(false);
-    playParagraph(startIndex);
+    playSentence(startIndex);
   };
 
-  const playParagraph = async (index) => {
-    if (index < 0 || index >= paragraphs.length) {
+  const playSentence = async (index) => {
+    if (index < 0 || index >= sentences.length) {
       stopTts();
       return;
     }
 
-    setActiveParagraphIndex(index);
-    isPlayingRef.current = true;
-    isPausedRef.current = false;
+    // 递增会话序列号，立即使当前执行的其他 playSentence 线程失效，杜绝重叠播放和状态混乱
+    speechSessionRef.current++;
+    const mySession = speechSessionRef.current;
+
+    setActiveSentenceIndex(index);
     setIsTtsPlaying(true);
     setIsTtsPaused(false);
 
     try {
+      // 深度防御性：清理句子前后的换行和空白，若为空句子，直接无缝步进到下一句，防止设备 TTS 引擎挂起或报 Error
+      const cleanText = sentences[index] ? sentences[index].trim() : '';
+      if (!cleanText) {
+        console.log(`[TTS] 句子为空，跳过 index: ${index}`);
+        playSentence(index + 1);
+        return;
+      }
+
       if (isNativeTts) {
         // A. 安卓原生 TTS 引擎播放分支
         await CapTTS.stop();
         
-        // 检查并发与打断锁状态，如果已经有更新的朗读线程，则此线程安全退出
-        if (!isPlayingRef.current || isPausedRef.current || activeIndexRef.current !== index) return;
+        // 异步等待 stop 后，检查此会话是否已被更高优先级的操作中断
+        if (mySession !== speechSessionRef.current) return;
 
         await CapTTS.speak({
-          text: paragraphs[index],
+          text: cleanText,
           lang: 'zh-CN',
           rate: ttsSpeed,
         });
 
-        // 异步朗读完毕后，若未被用户中途暂停或更换段落，平滑推进到下一段
-        if (isPlayingRef.current && !isPausedRef.current && activeIndexRef.current === index) {
-          playParagraph(index + 1);
+        // 异步朗读完毕后，若会话依然合法有效，平滑推进到下一句
+        if (mySession === speechSessionRef.current) {
+          playSentence(index + 1);
         }
       } else {
         // B. H5 网页 浏览器语音播放分支 (平滑降级)
         if (!synthRef.current) return;
         synthRef.current.cancel();
 
-        const utterance = new SpeechSynthesisUtterance(paragraphs[index]);
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         utteranceRef.current = utterance;
         
         utterance.rate = ttsSpeed;
         utterance.lang = 'zh-CN';
 
         utterance.onend = () => {
-          if (isPlayingRef.current && !isPausedRef.current && activeIndexRef.current === index) {
-            playParagraph(index + 1);
+          if (mySession === speechSessionRef.current) {
+            playSentence(index + 1);
           }
         };
 
         utterance.onerror = (e) => {
           console.error('SpeechSynthesis error:', e);
-          if (e.error !== 'interrupted') {
-            stopTts();
+          if (e.error !== 'interrupted' && mySession === speechSessionRef.current) {
+            // 发生非打断性异常时，兜底跳过当前异常句子，继续朗读下一句，防挂死
+            playSentence(index + 1);
           }
         };
 
@@ -197,16 +299,18 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
       }
     } catch (err) {
       console.error('TTS Playback failed:', err);
-      stopTts();
+      // 容错恢复机制：如果 native/H5 调用失败，安全步进到下一句
+      if (mySession === speechSessionRef.current) {
+        playSentence(index + 1);
+      }
     }
   };
 
   const pauseTts = async () => {
     setIsTtsPaused(true);
-    isPausedRef.current = true;
+    speechSessionRef.current++; // 废弃当前正准备链式播放下一个句子的老会话
     try {
       if (isNativeTts) {
-        // 安卓原生 TTS 停止播放以达到暂停效果
         await CapTTS.stop();
       } else {
         if (synthRef.current && synthRef.current.speaking && !synthRef.current.paused) {
@@ -220,16 +324,15 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
 
   const resumeTts = async () => {
     setIsTtsPaused(false);
-    isPausedRef.current = false;
     try {
       if (isNativeTts) {
-        // 安卓原生 TTS 重新从头播放当前段落
-        playParagraph(activeParagraphIndex >= 0 ? activeParagraphIndex : 0);
+        // 安卓原生 TTS 重新播放当前句子
+        playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
       } else {
         if (synthRef.current && synthRef.current.paused) {
           synthRef.current.resume();
         } else {
-          playParagraph(activeParagraphIndex >= 0 ? activeParagraphIndex : 0);
+          playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
         }
       }
     } catch (err) {
@@ -240,9 +343,8 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const stopTts = async () => {
     setIsTtsPlaying(false);
     setIsTtsPaused(false);
-    isPlayingRef.current = false;
-    isPausedRef.current = false;
-    setActiveParagraphIndex(-1);
+    setActiveSentenceIndex(-1);
+    speechSessionRef.current++; // 彻底失效当前播放流
     
     try {
       if (isNativeTts) {
@@ -258,15 +360,15 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
     utteranceRef.current = null;
   };
 
-  const nextParagraph = () => {
-    if (activeParagraphIndex < paragraphs.length - 1) {
-      playParagraph(activeParagraphIndex + 1);
+  const nextSentence = () => {
+    if (activeSentenceIndex < sentences.length - 1) {
+      playSentence(activeSentenceIndex + 1);
     }
   };
 
-  const prevParagraph = () => {
-    if (activeParagraphIndex > 0) {
-      playParagraph(activeParagraphIndex - 1);
+  const prevSentence = () => {
+    if (activeSentenceIndex > 0) {
+      playSentence(activeSentenceIndex - 1);
     }
   };
 
@@ -274,25 +376,24 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const handleSpeedChange = async (newSpeed) => {
     setTtsSpeed(newSpeed);
     if (isTtsPlaying && !isTtsPaused) {
-      // 语速变化时，立即停止当前段落并以新语速重新开始该段朗读
-      playParagraph(activeParagraphIndex);
+      // 语速变化时，立即停止当前句子并以新语速重新开始该句朗读
+      playSentence(activeSentenceIndex);
     }
   };
 
-  // 通过事件代理，实现点击文章任意段落即刻从该段开始/切换语音朗读 (极度便捷且响应迅速)
+  // 通过事件代理，实现点击文章任意句子即刻从该句开始/切换语音朗读 (极度便捷且响应迅速)
   const handleBodyClick = (e) => {
     // 保证正常超链接的点击跳转行为不受阻碍
     if (e.target.closest('a')) return;
 
-    const pElement = e.target.closest('p');
-    if (pElement && contentRef.current) {
-      const pElements = contentRef.current.querySelectorAll('.reader-body p');
-      const index = Array.from(pElements).indexOf(pElement);
-      if (index >= 0 && index < paragraphs.length) {
+    const spanEl = e.target.closest('.tts-sentence');
+    if (spanEl && contentRef.current) {
+      const index = parseInt(spanEl.getAttribute('data-sentence-idx'));
+      if (index >= 0 && index < sentences.length) {
         if (navigator.vibrate) {
-          navigator.vibrate(25); // 震动轻微反馈
+          navigator.vibrate(20); // 震动轻微反馈
         }
-        playParagraph(index);
+        playSentence(index);
       }
     }
   };
@@ -465,18 +566,18 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
             </span>
           </div>
 
-          {/* 渲染经过净化清洗的正文 HTML（二次安全过滤，杜绝 localStorage XSS 绕过） */}
+          {/* 渲染经过净化清洗和高精准 Span 锚点化的正文 HTML (增加 data-sentence-idx 属性的安全许可) */}
           <div 
             className="reader-body"
             dangerouslySetInnerHTML={{ 
-              __html: DOMPurify.sanitize(article.content || '', {
+              __html: DOMPurify.sanitize(sanitizedHtml || '', {
                 ALLOWED_TAGS: [
                   'p', 'img', 'video', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
                   'ul', 'ol', 'li', 'blockquote', 'strong', 'em', 'span', 'br', 'a', 
                   'section', 'fieldset', 'div', 'pre', 'code',
                   'table', 'thead', 'tbody', 'tr', 'th', 'td'
                 ],
-                ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'referrerpolicy']
+                ALLOWED_ATTR: ['src', 'href', 'alt', 'controls', 'class', 'referrerpolicy', 'data-sentence-idx']
               }) 
             }} 
           />
@@ -494,7 +595,7 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
               left: 0, 
               height: '3px', 
               backgroundColor: 'var(--primary)', 
-              width: `${paragraphs.length > 0 ? ((activeParagraphIndex + 1) / paragraphs.length) * 100 : 0}%`,
+              width: `${sentences.length > 0 ? ((activeSentenceIndex + 1) / sentences.length) * 100 : 0}%`,
               transition: 'width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
               borderTopLeftRadius: 'var(--border-radius-lg)',
               borderTopRightRadius: 'var(--border-radius-lg)',
@@ -502,12 +603,12 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
             }} 
           />
           <div className="tts-info">
-            <span>正在朗读第 {activeParagraphIndex + 1} / {paragraphs.length} 段</span>
+            <span>正在朗读第 {activeSentenceIndex + 1} / {sentences.length} 句</span>
             <span>语速: {ttsSpeed}x</span>
           </div>
 
           <div className="tts-controls">
-            <button className="btn-tts-secondary" onClick={prevParagraph} title="上一段">
+            <button className="btn-tts-secondary" onClick={prevSentence} title="上一句">
               <ChevronLeft size={18} />
             </button>
 
@@ -525,7 +626,7 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
               <Square size={16} fill="var(--text-main)" />
             </button>
 
-            <button className="btn-tts-secondary" onClick={nextParagraph} title="下一段">
+            <button className="btn-tts-secondary" onClick={nextSentence} title="下一句">
               <ChevronRight size={18} />
             </button>
           </div>

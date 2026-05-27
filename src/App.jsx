@@ -5,6 +5,7 @@ import ReaderView from './components/ReaderView';
 import SkeletonView from './components/SkeletonView';
 import { Clipboard, Sparkles, BookOpen, AlertCircle } from 'lucide-react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Clipboard as CapClipboard } from '@capacitor/clipboard';
 
 export default function App() {
   const [history, setHistory] = useState([]);
@@ -103,14 +104,23 @@ export default function App() {
     localStorage.setItem('readflow_global_theme', theme);
   }, [theme]);
 
-  // 3. 智能剪贴板扫描机制 (监听 App 唤醒 / 窗口重获焦点)
+  // 3. 智能剪贴板扫描机制 (监听 App 唤醒 / 窗口重获焦点 / Capacitor 原生前台唤醒)
   useEffect(() => {
     const checkClipboard = async () => {
       try {
-        if (!navigator.clipboard || !navigator.clipboard.readText) return;
+        let text = '';
         
-        // 获取剪贴板文本
-        const text = await navigator.clipboard.readText();
+        // 优先使用 Capacitor 原生剪贴板插件，在真机上 100% 成功且不受 WebView 安全沙箱限制
+        try {
+          const { value } = await CapClipboard.read();
+          text = value || '';
+        } catch (nativeErr) {
+          // 在 Web 浏览器开发预览模式下，降级到标准 H5 浏览器 API
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            text = await navigator.clipboard.readText();
+          }
+        }
+
         const trimmed = text.trim();
         
         // 匹配 HTTP/HTTPS 网址且和上一次检查的不同
@@ -120,18 +130,36 @@ export default function App() {
           setLastCheckedClipboardText(trimmed);
         }
       } catch (e) {
-        // 部分浏览器不支持或未授权，静默失败即可
-        console.log('Clipboard access not authorized or supported yet.');
+        console.log('Clipboard access not supported or authorized yet.', e);
       }
     };
 
-    // 页面加载完毕检查一次
+    // 页面加载或挂载时立刻检查一次
     checkClipboard();
 
-    // 每次用户切回应用（重获焦点），智能重新扫描剪贴板
+    // 监听 Web 窗口重获焦点 (Desktop Web / Mobile Browser)
     window.addEventListener('focus', checkClipboard);
+
+    // 监听 Capacitor 原生 App 状态切换 (从手机后台切回前台瞬间被唤醒)
+    let appStateListener = null;
+    const setupAppStateListener = async () => {
+      try {
+        appStateListener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            checkClipboard();
+          }
+        });
+      } catch (err) {
+        console.log('Capacitor App state listener is only active on native platforms.', err);
+      }
+    };
+    setupAppStateListener();
+
     return () => {
       window.removeEventListener('focus', checkClipboard);
+      if (appStateListener) {
+        appStateListener.remove();
+      }
     };
   }, [lastCheckedClipboardText]);
 

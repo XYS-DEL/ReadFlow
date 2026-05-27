@@ -212,7 +212,7 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
         activeSpans[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  }, [activeSentenceIndex, sentences]);
+  }, [activeSentenceIndex, sentences, isTtsPlaying, isTtsPaused, sanitizedHtml]);
 
   // ==========================================================================
   // TTS 语音朗读控制逻辑

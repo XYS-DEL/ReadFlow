@@ -8,8 +8,27 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Clipboard as CapClipboard } from '@capacitor/clipboard';
 
 export default function App() {
-  const [history, setHistory] = useState([]);
-  const [bookmarks, setBookmarks] = useState([]);
+  const [history, setHistory] = useState(() => {
+    const saved = localStorage.getItem('readflow_history');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const [bookmarks, setBookmarks] = useState(() => {
+    const saved = localStorage.getItem('readflow_bookmarks');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
   const [activeArticle, setActiveArticle] = useState(null);
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState('parchment'); // 默认护眼复古羊皮纸
@@ -37,36 +56,9 @@ export default function App() {
     bookmarksRef.current = bookmarks;
   }, [bookmarks]);
 
-  // 1. 初始化加载本地数据
+  // 1. 初始化加载本地数据 (仅加载主题，历史记录与收藏夹已在 state 声明中同步加载完毕)
   useEffect(() => {
-    const savedHistory = localStorage.getItem('readflow_history');
-    const savedBookmarks = localStorage.getItem('readflow_bookmarks');
     const savedTheme = localStorage.getItem('readflow_global_theme');
-
-    if (savedHistory) {
-      try {
-        const parsed = JSON.parse(savedHistory);
-        if (Array.isArray(parsed)) {
-          setHistory(parsed);
-        }
-      } catch (e) {
-        console.error('Failed to parse readflow_history from localStorage, resetting history.', e);
-        localStorage.removeItem('readflow_history');
-      }
-    }
-    
-    if (savedBookmarks) {
-      try {
-        const parsed = JSON.parse(savedBookmarks);
-        if (Array.isArray(parsed)) {
-          setBookmarks(parsed);
-        }
-      } catch (e) {
-        console.error('Failed to parse readflow_bookmarks from localStorage, resetting bookmarks.', e);
-        localStorage.removeItem('readflow_bookmarks');
-      }
-    }
-    
     if (savedTheme) {
       setTheme(savedTheme);
     }

@@ -279,6 +279,24 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
     }
   };
 
+  // 通过事件代理，实现点击文章任意段落即刻从该段开始/切换语音朗读 (极度便捷且响应迅速)
+  const handleBodyClick = (e) => {
+    // 保证正常超链接的点击跳转行为不受阻碍
+    if (e.target.closest('a')) return;
+
+    const pElement = e.target.closest('p');
+    if (pElement && contentRef.current) {
+      const pElements = contentRef.current.querySelectorAll('.reader-body p');
+      const index = Array.from(pElements).indexOf(pElement);
+      if (index >= 0 && index < paragraphs.length) {
+        if (navigator.vibrate) {
+          navigator.vibrate(25); // 震动轻微反馈
+        }
+        playParagraph(index);
+      }
+    }
+  };
+
   // 6 种高级视觉主题的定义
   const themes = [
     { id: 'theme-morning', name: '晨曦白', color: '#fcfbf9' },
@@ -423,7 +441,7 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
       </header>
 
       {/* 2. 核心文章区域 */}
-      <main className="reader-content-wrapper no-scrollbar" ref={contentRef}>
+      <main className="reader-content-wrapper no-scrollbar" ref={contentRef} onClick={handleBodyClick}>
         {/* 辅助对焦线 (视线聚焦引导线) */}
         {showFocusLine && (
           <div className="focus-line-overlay" style={{ top: '35vh', position: 'fixed' }} />
@@ -468,6 +486,21 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
       {/* 3. 底部语音播放面板 (TTS Panel) */}
       {isTtsPlaying && (
         <div className="tts-panel">
+          {/* 顶层极细流光进度条，质感直接拉满 */}
+          <div 
+            style={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              height: '3px', 
+              backgroundColor: 'var(--primary)', 
+              width: `${paragraphs.length > 0 ? ((activeParagraphIndex + 1) / paragraphs.length) * 100 : 0}%`,
+              transition: 'width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+              borderTopLeftRadius: 'var(--border-radius-lg)',
+              borderTopRightRadius: 'var(--border-radius-lg)',
+              zIndex: 5
+            }} 
+          />
           <div className="tts-info">
             <span>正在朗读第 {activeParagraphIndex + 1} / {paragraphs.length} 段</span>
             <span>语速: {ttsSpeed}x</span>

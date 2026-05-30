@@ -32,98 +32,16 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const [activeSentenceIndex, setActiveSentenceIndex] = useState(-1);
   const [sentences, setSentences] = useState([]); // 保持状态命名，为全局独立朗读句子数组
   const [sanitizedHtml, setSanitizedHtml] = useState('');
-  const [availableVoices, setAvailableVoices] = useState([]);
-  const [selectedVoiceName, setSelectedVoiceName] = useState('');
   
   const contentRef = useRef(null);
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
   const utteranceRef = useRef(null);
-  const onlineAudioRef = useRef(null); // 在线精品语音播放实例
 
   // 跨平台 Native TTS 控制变量及线程并发锁 (保障无缝步进高亮)
   const isNativeTts = Capacitor.isNativePlatform();
   const speechSessionRef = useRef(0); // 线程会话计数器，杜绝异步回调闭包及事件并发引发的值过期或段落重叠 Bug
-  const consecutiveErrorsRef = useRef(0); // 连续错误计数器，防进度条疯狂走 Bug
   
   const isBookmarked = bookmarks.some(item => item && (item.url === article.url || item.title === article.title));
-
-  // 动态扫描并加载系统/浏览器内置的所有中文音色
-  useEffect(() => {
-    // 6种极具拟真感、完全免费、免 Key 的在线高质量 AI 音色，为无内置发音人用户提供完美听书体验
-    const onlineVoices = [
-      { name: '在线精品：百度美柔 (标准女声)', id: 'baidu-0', type: 'online', engine: 'baidu', per: 0, lang: 'zh-CN' },
-      { name: '在线精品：百度宇宽 (标准男声)', id: 'baidu-1', type: 'online', engine: 'baidu', per: 1, lang: 'zh-CN' },
-      { name: '在线精品：百度逍遥 (情感男声)', id: 'baidu-3', type: 'online', engine: 'baidu', per: 3, lang: 'zh-CN' },
-      { name: '在线精品：百度丫丫 (情感女声)', id: 'baidu-4', type: 'online', engine: 'baidu', per: 4, lang: 'zh-CN' },
-      { name: '在线精品：有道官方 (清爽国语)', id: 'youdao-online', type: 'online', engine: 'youdao', lang: 'zh-CN' },
-      { name: '在线精品：谷歌官方 (高清国语)', id: 'google-online', type: 'online', engine: 'google', lang: 'zh-CN' }
-    ];
-
-    const loadVoices = async () => {
-      if (isNativeTts) {
-        try {
-          const res = await CapTTS.getSupportedVoices();
-          const zhVoices = (res.voices || []).map((voice, idx) => ({
-            name: voice.name,
-            lang: voice.lang,
-            voiceURI: voice.voiceURI,
-            default: voice.default,
-            originalIndex: idx
-          })).filter(v => v.lang && (v.lang.toLowerCase().includes('zh') || v.lang.toLowerCase().includes('chn') || v.lang.toLowerCase().includes('cmn')));
-          
-          const allVoices = [...onlineVoices, ...zhVoices];
-          setAvailableVoices(allVoices);
-          
-          const savedVoiceName = localStorage.getItem('readflow_selected_voice_name');
-          if (savedVoiceName && allVoices.some(v => v.name === savedVoiceName)) {
-            setSelectedVoiceName(savedVoiceName);
-          } else {
-            setSelectedVoiceName(onlineVoices[0].name); // 默认高保真在线美柔女声
-            localStorage.setItem('readflow_selected_voice_name', onlineVoices[0].name);
-          }
-        } catch (e) {
-          console.error('Failed to get native voices, fallback to online...', e);
-          setAvailableVoices(onlineVoices);
-          setSelectedVoiceName(onlineVoices[0].name);
-        }
-      } else {
-        const loadH5Voices = () => {
-          if (typeof window === 'undefined' || !window.speechSynthesis) return;
-          const voices = window.speechSynthesis.getVoices();
-          const zhVoices = voices.map((voice, idx) => ({
-            name: voice.name,
-            lang: voice.lang,
-            voiceURI: voice.voiceURI,
-            default: voice.default,
-            originalIndex: idx,
-            rawVoice: voice
-          })).filter(v => v.lang && (v.lang.toLowerCase().includes('zh') || v.lang.toLowerCase().includes('chn') || v.lang.toLowerCase().includes('cmn')));
-          
-          const allVoices = [...onlineVoices, ...zhVoices];
-          setAvailableVoices(allVoices);
-          
-          const savedVoiceName = localStorage.getItem('readflow_selected_voice_name');
-          if (savedVoiceName && allVoices.some(v => v.name === savedVoiceName)) {
-            setSelectedVoiceName(savedVoiceName);
-          } else {
-            setSelectedVoiceName(onlineVoices[0].name);
-            localStorage.setItem('readflow_selected_voice_name', onlineVoices[0].name);
-          }
-        };
-
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-          window.speechSynthesis.onvoiceschanged = loadH5Voices;
-          loadH5Voices();
-        } else {
-          // 兜底加载在线音色
-          setAvailableVoices(onlineVoices);
-          setSelectedVoiceName(onlineVoices[0].name);
-        }
-      }
-    };
-
-    loadVoices();
-  }, [isNativeTts]);
 
   // 从本地存储读取用户排版习惯
   useEffect(() => {
@@ -318,7 +236,7 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
       return;
     }
 
-    // 递增会话序列号，立使当前执行的其他 playSentence 线程失效，杜绝重叠播放和状态混乱
+    // 递增会话序列号，立即使当前执行的其他 playSentence 线程失效，杜绝重叠播放和状态混乱
     speechSessionRef.current++;
     const mySession = speechSessionRef.current;
 
@@ -335,132 +253,49 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
         return;
       }
 
-      // 打断正在播放的任何在线语音流
-      if (onlineAudioRef.current) {
-        onlineAudioRef.current.pause();
-        onlineAudioRef.current = null;
-      }
+      if (isNativeTts) {
+        // A. 安卓原生 TTS 引擎播放分支
+        await CapTTS.stop();
+        
+        // 异步等待 stop 后，检查此会话是否已被更高优先级的操作中断
+        if (mySession !== speechSessionRef.current) return;
 
-      // 获取当前发音人对象
-      const activeVoiceObj = availableVoices.find(v => v.name === selectedVoiceName);
+        await CapTTS.speak({
+          text: cleanText,
+          lang: 'zh-CN',
+          rate: ttsSpeed,
+        });
 
-      if (activeVoiceObj && activeVoiceObj.type === 'online') {
-        // C. 在线免 Key 神经网络语音播放分支
-        let audioUrl = '';
-        if (activeVoiceObj.engine === 'baidu') {
-          // spd 语速: 1-9，5为中数 (倍速映射：1.0x -> 5, 0.6x -> 3, 2.0x -> 9)
-          let speedParam = 5;
-          if (ttsSpeed <= 1.0) {
-            speedParam = Math.max(1, Math.floor(3 + (ttsSpeed - 0.6) * 5));
-          } else {
-            speedParam = Math.min(9, Math.floor(5 + (ttsSpeed - 1.0) * 4));
-          }
-          audioUrl = `https://tts.baidu.com/text2audio?tex=${encodeURIComponent(cleanText)}&lan=zh&cuid=dict&cod=2&spd=${speedParam}&per=${activeVoiceObj.per}`;
-        } else if (activeVoiceObj.engine === 'youdao') {
-          audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleanText)}&le=zh`;
-        } else if (activeVoiceObj.engine === 'google') {
-          audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(cleanText)}`;
+        // 异步朗读完毕后，若会话依然合法有效，平滑推进到下一句
+        if (mySession === speechSessionRef.current) {
+          playSentence(index + 1);
         }
-
-        const audio = new Audio();
-        // 核心突破：强制设置 referrerPolicy 为 no-referrer，消除 Referer 头，彻底绕过百度/有道等国内服务器的 Origin/Referer 防盗链与 403 封锁限制！
-        audio.referrerPolicy = "no-referrer";
-        audio.src = audioUrl;
-
-        onlineAudioRef.current = audio;
-
-        // 针对无法通过 URL 传参的在线引擎，直接在前端设定音频倍速播放
-        audio.playbackRate = ttsSpeed;
-
-        audio.onplaying = () => {
-          consecutiveErrorsRef.current = 0; // 播放成功，立即重置连续错误计数器
-        };
-
-        audio.onended = () => {
-          if (mySession === speechSessionRef.current) {
-            playSentence(index + 1);
-          }
-        };
-
-        audio.onerror = (e) => {
-          console.error('[Online TTS] 播放发生异常:', e);
-          consecutiveErrorsRef.current++;
-          
-          if (consecutiveErrorsRef.current >= 3) {
-            console.warn('[Online TTS] 连续发生 3 次播放异常，停止朗读');
-            stopTts();
-            alert('在线语音库加载失败，请检查网络连接或更换音色。提示：有道/百度音色国内直连极速；谷歌官方音色需要稳定的国际网络。');
-            return;
-          }
-          
-          if (mySession === speechSessionRef.current) {
-            // 延迟 500ms 步进到下一句，防止瞬间循环卡死进度条
-            setTimeout(() => {
-              if (mySession === speechSessionRef.current) {
-                playSentence(index + 1);
-              }
-            }, 500);
-          }
-        };
-
-        await audio.play();
       } else {
-        // A. 本地 Native / H5 语音播放分支
-        if (isNativeTts) {
-          // A. 安卓原生 TTS 引擎播放分支
-          await CapTTS.stop();
-          
-          // 异步等待 stop 后，检查此会话是否已被更高优先级的操作中断
-          if (mySession !== speechSessionRef.current) return;
+        // B. H5 网页 浏览器语音播放分支 (平滑降级)
+        if (!synthRef.current) return;
+        synthRef.current.cancel();
 
-          // 根据用户所选发音人名称，匹配原生音色索引
-          const voiceIdx = activeVoiceObj ? activeVoiceObj.originalIndex : undefined;
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utteranceRef.current = utterance;
+        
+        utterance.rate = ttsSpeed;
+        utterance.lang = 'zh-CN';
 
-          await CapTTS.speak({
-            text: cleanText,
-            lang: 'zh-CN',
-            rate: ttsSpeed,
-            voice: voiceIdx
-          });
-
-          // 异步朗读完毕后，若会话依然合法有效，平滑推进到下一句
+        utterance.onend = () => {
           if (mySession === speechSessionRef.current) {
             playSentence(index + 1);
           }
-        } else {
-          // B. H5 网页 浏览器语音播放分支 (平滑降级)
-          if (!synthRef.current) return;
-          synthRef.current.cancel();
+        };
 
-          const utterance = new SpeechSynthesisUtterance(cleanText);
-          utteranceRef.current = utterance;
-          
-          utterance.rate = ttsSpeed;
-          
-          // 匹配 H5 原生发音人对象
-          if (activeVoiceObj && activeVoiceObj.rawVoice) {
-            utterance.voice = activeVoiceObj.rawVoice;
-            utterance.lang = activeVoiceObj.lang;
-          } else {
-            utterance.lang = 'zh-CN';
+        utterance.onerror = (e) => {
+          console.error('SpeechSynthesis error:', e);
+          if (e.error !== 'interrupted' && mySession === speechSessionRef.current) {
+            // 发生非打断性异常时，兜底跳过当前异常句子，继续朗读下一句，防挂死
+            playSentence(index + 1);
           }
+        };
 
-          utterance.onend = () => {
-            if (mySession === speechSessionRef.current) {
-              playSentence(index + 1);
-            }
-          };
-
-          utterance.onerror = (e) => {
-            console.error('SpeechSynthesis error:', e);
-            if (e.error !== 'interrupted' && mySession === speechSessionRef.current) {
-              // 发生非打断性异常时，兜底跳过当前异常句子，继续朗读下一句，防挂死
-              playSentence(index + 1);
-            }
-          };
-
-          synthRef.current.speak(utterance);
-        }
+        synthRef.current.speak(utterance);
       }
     } catch (err) {
       console.error('TTS Playback failed:', err);
@@ -482,10 +317,6 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
           synthRef.current.pause();
         }
       }
-      // 暂停在线音频流
-      if (onlineAudioRef.current) {
-        onlineAudioRef.current.pause();
-      }
     } catch (err) {
       console.error('TTS Pause failed:', err);
     }
@@ -494,23 +325,14 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const resumeTts = async () => {
     setIsTtsPaused(false);
     try {
-      const activeVoiceObj = availableVoices.find(v => v.name === selectedVoiceName);
-      if (activeVoiceObj && activeVoiceObj.type === 'online') {
-        if (onlineAudioRef.current) {
-          onlineAudioRef.current.play(); // 恢复播放已缓存的在线音频片段
-        } else {
-          playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
-        }
+      if (isNativeTts) {
+        // 安卓原生 TTS 重新播放当前句子
+        playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
       } else {
-        if (isNativeTts) {
-          // 安卓原生 TTS 重新播放当前句子
-          playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
+        if (synthRef.current && synthRef.current.paused) {
+          synthRef.current.resume();
         } else {
-          if (synthRef.current && synthRef.current.paused) {
-            synthRef.current.resume();
-          } else {
-            playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
-          }
+          playSentence(activeSentenceIndex >= 0 ? activeSentenceIndex : 0);
         }
       }
     } catch (err) {
@@ -531,11 +353,6 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
         if (synthRef.current) {
           synthRef.current.cancel();
         }
-      }
-      // 停止并清理在线音频
-      if (onlineAudioRef.current) {
-        onlineAudioRef.current.pause();
-        onlineAudioRef.current = null;
       }
     } catch (err) {
       console.error('TTS Cancel failed:', err);
@@ -719,40 +536,6 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* 语音音色选择 */}
-            <div className="settings-section">
-              <div className="settings-label">语音音色 ({availableVoices.length} 种可用)</div>
-              {availableVoices.length > 0 ? (
-                <div className="voice-selector-container">
-                  <select 
-                    value={selectedVoiceName} 
-                    onChange={(e) => {
-                      const newVoiceName = e.target.value;
-                      setSelectedVoiceName(newVoiceName);
-                      localStorage.setItem('readflow_selected_voice_name', newVoiceName);
-                      if (isTtsPlaying && !isTtsPaused) {
-                        playSentence(activeSentenceIndex); // 切换音色时，立即以新音色重新朗读当前句
-                      }
-                    }}
-                    className="voice-select-dropdown"
-                  >
-                    {availableVoices.map(v => (
-                      <option key={v.name} value={v.name}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="voice-tip">
-                    💡 提示：App 会自动发现系统及浏览器中的所有中文音色。你可以在手机“系统设置 - 辅助功能 - 无障碍 - 文本转语音 (TTS)”中安装导入第三方高品质 AI 发音人（如讯飞、微软等），App 将自动发现并支持导入！
-                  </div>
-                </div>
-              ) : (
-                <div className="voice-empty">
-                  暂无可用中文音色，将使用系统默认发音。
-                </div>
-              )}
             </div>
           </div>
         )}

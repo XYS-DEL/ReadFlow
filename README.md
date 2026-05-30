@@ -1,16 +1,99 @@
-# React + Vite
+# ReadFlow (流光阅读器) 📖✨
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **ReadFlow** 是一款专为移动端原生与 Web 双端设计的极致高保真、纯净、无广告智能网页正文提取与句级 TTS 语音朗读电子书阅读器。
 
-Currently, two official plugins are available:
+依托 **React + Vite + Capacitor + Vanilla CSS** 技术栈构建，融合了极具现代艺术感的 **Glassmorphism（毛玻璃/玻璃拟态）** 视觉设计，配备了一整套精心调校的智能剪贴板扫描、侧滑/长按手势、字数去重统计以及领先业界的 **“句级高精准同步朗读与像素高亮滚动”** 系统。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🌟 核心亮点与特色功能
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. 极致纯净与障碍友好视觉排版
+* **六大精选阅读主题**：配备晨曦白、护眼绿、羊皮纸、优雅灰、深空灰、极夜黑六款高对比度柔和配色，完美护眼。
+* **经典衬线与现代无衬线**：内置衬线体 (Lora/Noto Serif) 与非衬线体无极调节，行高间距、字体大小精准适配。
+* **辅助“视线聚焦引导线”**：为注意力障碍者与长文本阅读者定制的半透明聚焦遮罩线，有效防止串行漏读。
+* **高档流光骨架屏**：智能自适应当前阅读主题的流光扫过骨架屏，渲染加载时带来极致视觉解压。
 
-## Expanding the ESLint configuration
+### 2. 启发式智能网页正文清洁提取
+* **Readability 智能正文引擎**：引入启发式文本提取算法，一键抓取并彻底过滤杂乱无章的侧边栏、广告横幅和冗余底栏。
+* **全品类排版深度净化**：支持提取段落、标题、有序/无序列表、块级引用、粗体斜体、超链接以及复杂的表格与代码块，排版精细纯正。
+* **本地代理防盗链图片**：智能绕过各大自媒体平台的图片防盗链限制，保障移动端离线阅读完美呈现。
+* **8秒网络强行超时截断**：智能检测卡死或恶意加载网页，超时自动熔断并呈现已抓取数据，绝不挂死应用。
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 3. 高保真“句级朗读与像素高亮”系统 (TTS)
+* **深度优先全节点扫描器 (DFS Dom Splitter)**：深度优先递归扫描文本节点，让标题、引用、列表项无缝融入朗读队列。
+* **智能跨格式标点分割算法**：逐字高精度扫描，即使句子内部穿插 `<strong>`、`<em>`、`<a>` 链接等内联元素，仍能保持同一全局句索引，**100% 维护原始文章富文本布局**。
+* **跨块边界闭合机制**：智能追踪块级父容器，跨越段落、标题时强制收口闭合句子，防止朗读视觉发生段落平移割裂。
+* **线程级并发会话锁 (Session Lock)**：基于 `speechSessionRef` 自增序列号，无论是上一句、下一句、暂停、播放还是点击任意段落任意句子直接跳转，都能实现微秒级防错位同步，彻底消灭声音重叠。
+* **丝滑逐句黄色半透明高亮底框**：朗读高亮抛弃了粗暴的背景平铺，升级为上圆角加主题自适应固体下划线，朗读句实时保持在**屏幕正中央平滑滚动**。
+
+### 4. 零摩擦移动端手势与原生交互
+* **现代三标签底部导航 (Bottom Navigation Bar)**：首页（解析框 + 看板）、最近阅读（历史卡片流）、我的收藏（永久离线书签），结构清晰立体。
+* **长按卡片弹出毛玻璃操作抽屉**：长按历史卡片发生微缩回弹物理反馈并滑出底部功能面板，支持防滚动误触算法。
+* **向左滑动取消收藏 (Swipe Left)**：基于手指滑动力度和吸附回弹机制的左滑侧边红色操作区，交互如原生般丝滑。
+* **智能剪贴板扫描与前台唤醒**：原生接入 `@capacitor/clipboard` 与 AppState 监听，App 从后台切换回前台时，自动嗅探剪贴板链接并优雅弹出解析推荐，一键搞定！
+* **原生物理返回键完美拦截**：深度定制 Android 物理返回键路由，实现“阅读器 -> 标签页 -> 首页 -> 退出”的最优返回链路。
+
+---
+
+## 🛠️ 技术栈详情
+
+* **核心框架**：React 19 (Hooks) + React DOM
+* **构建工具**：Vite 8
+* **跨平台桥接**：Capacitor 8 (支持原生 Android / iOS 打包运行)
+* **安全过滤**：DOMPurify 3
+* **排版处理**：@mozilla/readability 0.6 + Marked 18
+* **样式设计**：Vanilla CSS 3 (全自适应 HSL 配色变量体系 + 毛玻璃滤镜)
+* **图标库**：Lucide React 1.16
+
+---
+
+## 🚀 开发者本地启动指南
+
+### 1. 克隆并安装依赖
+```bash
+# 安装 npm 依赖包
+npm install
+```
+
+### 2. 启动本地开发热更新服务器 (Vite)
+```bash
+# 启动 Vite Dev Server 并在浏览器中预览
+npm run dev
+```
+
+### 3. 同步 Web 静态资源到 Capacitor Android 平台
+```bash
+# 1. 编译前端生产包
+npm run build
+
+# 2. 将编译好的资源同步拷贝至安卓原生项目
+npx cap sync
+```
+
+---
+
+## 📱 原生 Android 编译与 APK 打包指南
+
+项目已通过 Gradle 原生集成并成功进行真机适配，您可以直接使用 Android Studio 进行成品 `.apk` 的打包：
+
+1. **同步最新 Web 前端代码**：
+   ```powershell
+   npm run build
+   npx cap sync
+   ```
+2. **在 Android Studio 中打开原生项目**：
+   ```powershell
+   npx cap open android
+   ```
+3. **编译成品 `.apk`**：
+   * 待 Android Studio 底部的 Gradle 同步完毕。
+   * 点击顶部菜单栏的：👉 **Build -> Build Bundle(s) / APK(s) -> Build APK(s)**
+   * 编译完成后，点击右下角气泡中的 **Locate** 链接，即可获得成品 **`app-debug.apk`**。
+   * 直接发送至您的 Android 手机中点击安装，即可享受极致流畅的离线毛玻璃听书快感！
+
+---
+
+## ⚖️ 开源协议 & 声明
+
+本项目仅供学术交流与个人研究使用。ReadFlow 内置的安全过滤机制能确保提取过程中保护用户信息安全，同时通过了全方位的 XSS 与生命周期泄漏防护，您可以放心阅读与使用。

@@ -43,17 +43,19 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   // 跨平台 Native TTS 控制变量及线程并发锁 (保障无缝步进高亮)
   const isNativeTts = Capacitor.isNativePlatform();
   const speechSessionRef = useRef(0); // 线程会话计数器，杜绝异步回调闭包及事件并发引发的值过期或段落重叠 Bug
+  const consecutiveErrorsRef = useRef(0); // 连续错误计数器，防进度条疯狂走 Bug
   
   const isBookmarked = bookmarks.some(item => item && (item.url === article.url || item.title === article.title));
 
   // 动态扫描并加载系统/浏览器内置的所有中文音色
   useEffect(() => {
-    // 5种极具拟真感、完全免费、免 Key 的在线高质量 AI 音色，为无内置发音人用户提供完美听书体验
+    // 6种极具拟真感、完全免费、免 Key 的在线高质量 AI 音色，为无内置发音人用户提供完美听书体验
     const onlineVoices = [
       { name: '在线精品：百度美柔 (标准女声)', id: 'baidu-0', type: 'online', engine: 'baidu', per: 0, lang: 'zh-CN' },
       { name: '在线精品：百度宇宽 (标准男声)', id: 'baidu-1', type: 'online', engine: 'baidu', per: 1, lang: 'zh-CN' },
       { name: '在线精品：百度逍遥 (情感男声)', id: 'baidu-3', type: 'online', engine: 'baidu', per: 3, lang: 'zh-CN' },
       { name: '在线精品：百度丫丫 (情感女声)', id: 'baidu-4', type: 'online', engine: 'baidu', per: 4, lang: 'zh-CN' },
+      { name: '在线精品：有道官方 (清爽国语)', id: 'youdao-online', type: 'online', engine: 'youdao', lang: 'zh-CN' },
       { name: '在线精品：谷歌官方 (高清国语)', id: 'google-online', type: 'online', engine: 'google', lang: 'zh-CN' }
     ];
 
@@ -354,15 +356,25 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
             speedParam = Math.min(9, Math.floor(5 + (ttsSpeed - 1.0) * 4));
           }
           audioUrl = `https://tts.baidu.com/text2audio?tex=${encodeURIComponent(cleanText)}&lan=zh&cuid=dict&cod=2&spd=${speedParam}&per=${activeVoiceObj.per}`;
+        } else if (activeVoiceObj.engine === 'youdao') {
+          audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleanText)}&le=zh`;
         } else if (activeVoiceObj.engine === 'google') {
           audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(cleanText)}`;
         }
 
-        const audio = new Audio(audioUrl);
+        const audio = new Audio();
+        // 核心突破：强制设置 referrerPolicy 为 no-referrer，消除 Referer 头，彻底绕过百度/有道等国内服务器的 Origin/Referer 防盗链与 403 封锁限制！
+        audio.referrerPolicy = "no-referrer";
+        audio.src = audioUrl;
+
         onlineAudioRef.current = audio;
 
-        // 针对无法通过 URL 传参的在线引擎 (如谷歌)，直接在前端设定音频倍速播放
+        // 针对无法通过 URL 传参的在线引擎，直接在前端设定音频倍速播放
         audio.playbackRate = ttsSpeed;
+
+        audio.onplaying = () => {
+          consecutiveErrorsRef.current = 0; // 播放成功，立即重置连续错误计数器
+        };
 
         audio.onended = () => {
           if (mySession === speechSessionRef.current) {
@@ -371,9 +383,23 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
         };
 
         audio.onerror = (e) => {
-          console.error('[Online TTS] 播放发生异常，跳过当前句:', e);
+          console.error('[Online TTS] 播放发生异常:', e);
+          consecutiveErrorsRef.current++;
+          
+          if (consecutiveErrorsRef.current >= 3) {
+            console.warn('[Online TTS] 连续发生 3 次播放异常，停止朗读');
+            stopTts();
+            alert('在线语音库加载失败，请检查网络连接或更换音色。提示：有道/百度音色国内直连极速；谷歌官方音色需要稳定的国际网络。');
+            return;
+          }
+          
           if (mySession === speechSessionRef.current) {
-            playSentence(index + 1);
+            // 延迟 500ms 步进到下一句，防止瞬间循环卡死进度条
+            setTimeout(() => {
+              if (mySession === speechSessionRef.current) {
+                playSentence(index + 1);
+              }
+            }, 500);
           }
         };
 

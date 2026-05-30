@@ -32,6 +32,8 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const [activeSentenceIndex, setActiveSentenceIndex] = useState(-1);
   const [sentences, setSentences] = useState([]); // 保持状态命名，为全局独立朗读句子数组
   const [sanitizedHtml, setSanitizedHtml] = useState('');
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState('');
   
   const contentRef = useRef(null);
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
@@ -42,6 +44,72 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
   const speechSessionRef = useRef(0); // 线程会话计数器，杜绝异步回调闭包及事件并发引发的值过期或段落重叠 Bug
   
   const isBookmarked = bookmarks.some(item => item && (item.url === article.url || item.title === article.title));
+
+  // 动态扫描并加载系统/浏览器内置的所有中文音色
+  useEffect(() => {
+    const loadVoices = async () => {
+      if (isNativeTts) {
+        try {
+          const res = await CapTTS.getSupportedVoices();
+          const zhVoices = (res.voices || []).map((voice, idx) => ({
+            name: voice.name,
+            lang: voice.lang,
+            voiceURI: voice.voiceURI,
+            default: voice.default,
+            originalIndex: idx
+          })).filter(v => v.lang && (v.lang.toLowerCase().includes('zh') || v.lang.toLowerCase().includes('chn') || v.lang.toLowerCase().includes('cmn')));
+          
+          setAvailableVoices(zhVoices);
+          
+          const savedVoiceName = localStorage.getItem('readflow_selected_voice_name');
+          if (savedVoiceName && zhVoices.some(v => v.name === savedVoiceName)) {
+            setSelectedVoiceName(savedVoiceName);
+          } else {
+            const defVoice = zhVoices.find(v => v.default) || zhVoices[0];
+            if (defVoice) {
+              setSelectedVoiceName(defVoice.name);
+              localStorage.setItem('readflow_selected_voice_name', defVoice.name);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to get native voices', e);
+        }
+      } else {
+        const loadH5Voices = () => {
+          if (typeof window === 'undefined' || !window.speechSynthesis) return;
+          const voices = window.speechSynthesis.getVoices();
+          const zhVoices = voices.map((voice, idx) => ({
+            name: voice.name,
+            lang: voice.lang,
+            voiceURI: voice.voiceURI,
+            default: voice.default,
+            originalIndex: idx,
+            rawVoice: voice
+          })).filter(v => v.lang && (v.lang.toLowerCase().includes('zh') || v.lang.toLowerCase().includes('chn') || v.lang.toLowerCase().includes('cmn')));
+          
+          setAvailableVoices(zhVoices);
+          
+          const savedVoiceName = localStorage.getItem('readflow_selected_voice_name');
+          if (savedVoiceName && zhVoices.some(v => v.name === savedVoiceName)) {
+            setSelectedVoiceName(savedVoiceName);
+          } else {
+            const defVoice = zhVoices.find(v => v.default) || zhVoices[0];
+            if (defVoice) {
+              setSelectedVoiceName(defVoice.name);
+              localStorage.setItem('readflow_selected_voice_name', defVoice.name);
+            }
+          }
+        };
+
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+          window.speechSynthesis.onvoiceschanged = loadH5Voices;
+          loadH5Voices();
+        }
+      }
+    };
+
+    loadVoices();
+  }, [isNativeTts]);
 
   // 从本地存储读取用户排版习惯
   useEffect(() => {
@@ -260,10 +328,15 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
         // 异步等待 stop 后，检查此会话是否已被更高优先级的操作中断
         if (mySession !== speechSessionRef.current) return;
 
+        // 根据用户所选发音人名称，匹配原生音色索引
+        const activeVoiceObj = availableVoices.find(v => v.name === selectedVoiceName);
+        const voiceIdx = activeVoiceObj ? activeVoiceObj.originalIndex : undefined;
+
         await CapTTS.speak({
           text: cleanText,
           lang: 'zh-CN',
           rate: ttsSpeed,
+          voice: voiceIdx
         });
 
         // 异步朗读完毕后，若会话依然合法有效，平滑推进到下一句
@@ -279,7 +352,15 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
         utteranceRef.current = utterance;
         
         utterance.rate = ttsSpeed;
-        utterance.lang = 'zh-CN';
+        
+        // 匹配 H5 原生发音人对象
+        const activeVoiceObj = availableVoices.find(v => v.name === selectedVoiceName);
+        if (activeVoiceObj && activeVoiceObj.rawVoice) {
+          utterance.voice = activeVoiceObj.rawVoice;
+          utterance.lang = activeVoiceObj.lang;
+        } else {
+          utterance.lang = 'zh-CN';
+        }
 
         utterance.onend = () => {
           if (mySession === speechSessionRef.current) {
@@ -536,6 +617,40 @@ export default function ReaderView({ article, theme, setTheme, bookmarks = [], o
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* 语音音色选择 */}
+            <div className="settings-section">
+              <div className="settings-label">语音音色 ({availableVoices.length} 种可用)</div>
+              {availableVoices.length > 0 ? (
+                <div className="voice-selector-container">
+                  <select 
+                    value={selectedVoiceName} 
+                    onChange={(e) => {
+                      const newVoiceName = e.target.value;
+                      setSelectedVoiceName(newVoiceName);
+                      localStorage.setItem('readflow_selected_voice_name', newVoiceName);
+                      if (isTtsPlaying && !isTtsPaused) {
+                        playSentence(activeSentenceIndex); // 切换音色时，立即以新音色重新朗读当前句
+                      }
+                    }}
+                    className="voice-select-dropdown"
+                  >
+                    {availableVoices.map(v => (
+                      <option key={v.name} value={v.name}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="voice-tip">
+                    💡 提示：App 会自动发现系统及浏览器中的所有中文音色。你可以在手机“系统设置 - 辅助功能 - 无障碍 - 文本转语音 (TTS)”中安装导入第三方高品质 AI 发音人（如讯飞、微软等），App 将自动发现并支持导入！
+                  </div>
+                </div>
+              ) : (
+                <div className="voice-empty">
+                  暂无可用中文音色，将使用系统默认发音。
+                </div>
+              )}
             </div>
           </div>
         )}
